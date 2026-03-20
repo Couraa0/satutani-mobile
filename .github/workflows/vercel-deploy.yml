@@ -1,0 +1,41 @@
+name: Deploy to Vercel
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: satutani_mobile
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Get dependencies
+        run: flutter pub get
+
+      - name: Build Web
+        run: flutter build web --release
+
+      - name: Copy Vercel Configuration
+        run: cp vercel.json build/web/vercel.json
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: "team_JujNQWLjVABHBQTjVNzOTBhS"
+          vercel-project-id: "prj_n1IhxVF8D2qNHTHkywbwf9trPqZU"
+          working-directory: ./satutani_mobile/build/web
+          vercel-args: "--prod --yes"
