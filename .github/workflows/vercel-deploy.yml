@@ -32,10 +32,9 @@ jobs:
         run: cp vercel.json build/web/vercel.json
 
       - name: Deploy to Vercel
-        uses: amondnet/vercel-action@v25
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: "team_JujNQWLjVABHBQTjVNzOTBhS"
-          vercel-project-id: "prj_n1IhxVF8D2qNHTHkywbwf9trPqZU"
-          working-directory: ./satutani_mobile/build/web
-          vercel-args: "--prod --yes"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          export VERCEL_ORG_ID=team_JujNQWLjVABHBQTjVNzOTBhS
+          export VERCEL_PROJECT_ID=prj_n1IhxVF8D2qNHTHkywbwf9trPqZU
+          npx vercel ./build/web --prod --yes --token $VERCEL_TOKEN
