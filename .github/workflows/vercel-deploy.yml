@@ -35,6 +35,5 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          export VERCEL_ORG_ID=team_JujNQWLjVABHBQTjVNzOTBhS
-          export VERCEL_PROJECT_ID=prj_n1IhxVF8D2qNHTHkywbwf9trPqZU
-          npx vercel ./build/web --prod --yes --token $VERCEL_TOKEN
+          cd build/web
+          npx vercel --prod --yes --token $VERCEL_TOKEN --name satutani-mobile --org team_JujNQWLjVABHBQTjVNzOTBhS
