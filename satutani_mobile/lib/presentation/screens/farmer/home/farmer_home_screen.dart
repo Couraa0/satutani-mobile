@@ -7,6 +7,8 @@ import '../../../../presentation/widgets/kpi_card.dart';
 import '../../../../presentation/widgets/section_header.dart';
 import '../../../../presentation/widgets/status_badge.dart';
 import '../products/add_product_screen.dart';
+import 'ai_price_check_screen.dart';
+import 'market_forecast_screen.dart';
 
 class FarmerHomeScreen extends StatelessWidget {
   const FarmerHomeScreen({super.key});
@@ -95,16 +97,19 @@ class FarmerHomeScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 GridView.count(
-                  crossAxisCount: 2, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
+                  crossAxisCount: 3, shrinkWrap: true, physics: const NeverScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  childAspectRatio: 2.4, mainAxisSpacing: 10, crossAxisSpacing: 10,
+                  childAspectRatio: 0.95, mainAxisSpacing: 10, crossAxisSpacing: 10,
                   children: [
                     _QuickAction(icon: Icons.add_box_outlined, label: AppStrings.addProduct, color: AppColors.primary, onTap: () {
                       Navigator.push(context, MaterialPageRoute(builder: (_) => const AddProductScreen()));
                     }),
-                    _QuickAction(icon: Icons.psychology_outlined, label: AppStrings.aiPricing, color: AppColors.info, onTap: () {}),
-                    _QuickAction(icon: Icons.analytics_outlined, label: AppStrings.marketForecast, color: AppColors.secondary, onTap: () {}),
-                    _QuickAction(icon: Icons.account_balance_outlined, label: AppStrings.applyKur, color: AppColors.success, onTap: () {}),
+                    _QuickAction(icon: Icons.psychology_outlined, label: AppStrings.aiPricing, color: AppColors.info, onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const AiPriceCheckScreen()));
+                    }),
+                    _QuickAction(icon: Icons.analytics_outlined, label: AppStrings.marketForecast, color: AppColors.secondary, onTap: () {
+                      Navigator.push(context, MaterialPageRoute(builder: (_) => const MarketForecastScreen()));
+                    }),
                   ],
                 ),
                 // Recent orders
@@ -138,12 +143,22 @@ class _QuickAction extends StatelessWidget {
           color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(14),
           border: Border.all(color: color.withValues(alpha: 0.2)),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        child: Row(children: [
-          Icon(icon, color: color, size: 22),
-          const SizedBox(width: 8),
-          Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color), maxLines: 2)),
-        ]),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(height: 8),
+            Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color), maxLines: 2, textAlign: TextAlign.center),
+          ],
+        ),
       ),
     );
   }
