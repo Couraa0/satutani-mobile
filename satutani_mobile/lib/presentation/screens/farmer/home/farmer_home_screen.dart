@@ -12,7 +12,7 @@ import 'market_forecast_screen.dart';
 
 class FarmerHomeScreen extends StatelessWidget {
   const FarmerHomeScreen({super.key});
-
+ 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
