@@ -44,11 +44,11 @@ Pastikan Anda sudah menginstall:
 ### 2. Instalasi & Menjalankan
 1. *Clone* repository ini:
    ```bash
-   git clone https://github.com/MuhammadRafly23100/SatuTani.git
+   git clone https://github.com/Couraa0/satutani-mobile.git
    ```
 2. Masuk ke direktori mobile app:
    ```bash
-   cd SatuTani/satutani_mobile
+   cd satutani_mobile
    ```
 3. Unduh semua dependencies:
    ```bash

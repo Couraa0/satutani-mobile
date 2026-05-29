@@ -1,0 +1,7 @@
+# Environment variables — JANGAN PERNAH di-commit
+.env
+.env.local
+.env.*.local
+
+# Claude Code memory (local only)
+.claude/
