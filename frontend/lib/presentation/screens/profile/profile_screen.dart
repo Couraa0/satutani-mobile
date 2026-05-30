@@ -1,11 +1,54 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/colors.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/user_service.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  Map<String, dynamic>? _profile;
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final data = await UserService.getMyProfile();
+    if (mounted) setState(() { _profile = data; _loading = false; });
+  }
+
+  String get _name => _profile?['name'] ?? AuthService.currentUser?.email ?? 'User';
+  String get _email => AuthService.currentUser?.email ?? '';
+  String get _role {
+    final r = _profile?['role'] ?? 'consumer';
+    if (r == 'farmer') return 'Petani';
+    if (r == 'admin') return 'Admin';
+    return 'Pembeli';
+  }
+  String get _location {
+    final city = _profile?['city'] ?? '';
+    final province = _profile?['province'] ?? '';
+    if (city.isEmpty && province.isEmpty) return 'Indonesia';
+    if (city.isEmpty) return province;
+    return '$city, $province';
+  }
+  String get _avatarUrl => AuthService.currentUser?.userMetadata?['avatar_url'] ?? '';
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
     return Scaffold(
       backgroundColor: const Color(0xFFE8F5E9),
       body: Stack(
@@ -74,7 +117,8 @@ class ProfileScreen extends StatelessWidget {
                   // Menu Items (Group 2)
                   _buildMenuItem(Icons.security_rounded, 'Keamanan Aplikasi'),
                   _buildMenuItem(Icons.devices_rounded, 'Kelola Perangkat'),
-                  _buildMenuItem(Icons.password_rounded, 'Ubah Kata Sandi'),
+                  _buildMenuItem(Icons.password_rounded, 'Ubah Kata Sandi',
+                      onTap: () => _showChangePasswordSheet(context)),
                   
                   const SizedBox(height: 16),
                   
@@ -127,39 +171,38 @@ class ProfileScreen extends StatelessWidget {
       child: Column(
         children: [
           // Avatar
-          Container(
-            padding: const EdgeInsets.all(4),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const CircleAvatar(
-              radius: 40,
-              backgroundImage: NetworkImage('https://i.pravatar.cc/150?img=12'),
-              backgroundColor: AppColors.primaryLight,
-            ),
+          CircleAvatar(
+            radius: 44,
+            backgroundColor: AppColors.primaryLight,
+            backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
+            child: _avatarUrl.isEmpty
+                ? Text(
+                    _name.isNotEmpty ? _name[0].toUpperCase() : 'U',
+                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primary),
+                  )
+                : null,
           ),
           const SizedBox(height: 16),
-          
+
           // Name and Email
-          const Text('Andi Pratama', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+          Text(_name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
           const SizedBox(height: 4),
-          Text('andi.pratama@email.com', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-          
+          Text(_email, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+
           const SizedBox(height: 8),
-          
+
           // Role and Location
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Text('Petani', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              Text(_role, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
                 child: Text('·', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
               ),
               Icon(Icons.location_on_outlined, size: 14, color: Colors.grey[500]),
               const SizedBox(width: 4),
-              Text('Bandung, Indonesia', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+              Text(_location, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
             ],
           ),
           
@@ -185,7 +228,19 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuItem(IconData icon, String title) {
+  void _showChangePasswordSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+        child: const _ChangePasswordSheet(),
+      ),
+    );
+  }
+
+  Widget _buildMenuItem(IconData icon, String title, {VoidCallback? onTap}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Material(
@@ -194,7 +249,7 @@ class ProfileScreen extends StatelessWidget {
         elevation: 0,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {},
+          onTap: onTap ?? () {},
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
@@ -242,7 +297,11 @@ class ProfileScreen extends StatelessWidget {
                 actions: [
                   TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
                   ElevatedButton(
-                    onPressed: () { Navigator.pop(context); Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false); },
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await AuthService.signOut();
+                      if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/splash', (_) => false);
+                    },
                     style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
                     child: const Text('Keluar'),
                   ),
@@ -274,6 +333,192 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ChangePasswordSheet extends StatefulWidget {
+  const _ChangePasswordSheet();
+
+  @override
+  State<_ChangePasswordSheet> createState() => _ChangePasswordSheetState();
+}
+
+class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
+  final _newCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _obscureNew = true;
+  bool _obscureConfirm = true;
+  bool _loading = false;
+
+  @override
+  void dispose() {
+    _newCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final pass = _newCtrl.text;
+    final confirm = _confirmCtrl.text;
+
+    if (pass.isEmpty || confirm.isEmpty) {
+      _toast('Kata sandi wajib diisi', error: true);
+      return;
+    }
+    if (pass.length < 6) {
+      _toast('Kata sandi minimal 6 karakter', error: true);
+      return;
+    }
+    if (pass != confirm) {
+      _toast('Konfirmasi kata sandi tidak cocok', error: true);
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      await Supabase.instance.client.auth.updateUser(
+        UserAttributes(password: pass),
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      _toast('Kata sandi berhasil disimpan');
+    } on AuthException catch (e) {
+      _toast(e.message, error: true);
+    } catch (e) {
+      _toast('Gagal menyimpan kata sandi', error: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  void _toast(String msg, {bool error = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        backgroundColor: error ? const Color(0xFFD32F2F) : const Color(0xFF2E7D32),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Container(
+              width: 40, height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade300,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text('Ubah Kata Sandi',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+          const SizedBox(height: 6),
+          Text(
+            'Buat kata sandi baru untuk akun Anda. Setelah disimpan, Anda bisa login dengan email + kata sandi.',
+            style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.4),
+          ),
+          const SizedBox(height: 20),
+
+          const Text('Kata Sandi Baru',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _newCtrl,
+            obscureText: _obscureNew,
+            decoration: _decor(
+              hint: 'Minimal 6 karakter',
+              icon: Icons.lock_outline_rounded,
+              obscured: _obscureNew,
+              onToggle: () => setState(() => _obscureNew = !_obscureNew),
+            ),
+          ),
+          const SizedBox(height: 16),
+
+          const Text('Konfirmasi Kata Sandi',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _confirmCtrl,
+            obscureText: _obscureConfirm,
+            decoration: _decor(
+              hint: 'Ulangi kata sandi',
+              icon: Icons.lock_outline_rounded,
+              obscured: _obscureConfirm,
+              onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
+            ),
+          ),
+          const SizedBox(height: 24),
+
+          SizedBox(
+            width: double.infinity,
+            height: 52,
+            child: ElevatedButton(
+              onPressed: _loading ? null : _save,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              child: _loading
+                  ? const SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                    )
+                  : const Text('Simpan',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  InputDecoration _decor({
+    required String hint,
+    required IconData icon,
+    required bool obscured,
+    required VoidCallback onToggle,
+  }) {
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+      prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+      suffixIcon: GestureDetector(
+        onTap: onToggle,
+        child: Icon(
+          obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+          color: AppColors.textSecondary, size: 20,
+        ),
+      ),
+      filled: true,
+      fillColor: const Color(0xFFF7F8FA),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: Colors.grey.shade200),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
       ),
     );
   }

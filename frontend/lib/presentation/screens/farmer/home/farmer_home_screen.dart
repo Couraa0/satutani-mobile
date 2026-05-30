@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/constants/strings.dart';
+import '../../../../core/services/auth_service.dart';
+import '../../../../core/services/user_service.dart';
 import '../../../../data/mock/orders_mock.dart';
 import '../../../../data/mock/products_mock.dart';
 import '../../../../presentation/widgets/kpi_card.dart';
@@ -10,8 +12,44 @@ import '../products/add_product_screen.dart';
 import 'ai_price_check_screen.dart';
 import 'market_forecast_screen.dart';
 
-class FarmerHomeScreen extends StatelessWidget {
+class FarmerHomeScreen extends StatefulWidget {
   const FarmerHomeScreen({super.key});
+
+  @override
+  State<FarmerHomeScreen> createState() => _FarmerHomeScreenState();
+}
+
+class _FarmerHomeScreenState extends State<FarmerHomeScreen> {
+  Map<String, dynamic>? _profile;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    final data = await UserService.getMyProfile();
+    if (mounted) setState(() => _profile = data);
+  }
+
+  String get _greetingName {
+    final name = (_profile?['name'] as String?)?.trim();
+    if (name != null && name.isNotEmpty) return name;
+    final email = AuthService.currentUser?.email;
+    if (email != null && email.isNotEmpty) return email.split('@').first;
+    return 'Petani';
+  }
+
+  String get _todayString {
+    const days = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+    final now = DateTime.now();
+    return '${days[now.weekday - 1]}, ${now.day} ${months[now.month - 1]} ${now.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,9 +69,9 @@ class FarmerHomeScreen extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Halo, Pak Budi! 👋', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+                        Text('Halo, $_greetingName! 👋', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
                         const SizedBox(height: 2),
-                        Text('Senin, 16 Mar 2026', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
+                        Text(_todayString, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
                       ]),
                       Row(children: [
                         Stack(children: [
