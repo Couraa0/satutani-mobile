@@ -33,7 +33,11 @@ class _SplashScreenState extends State<SplashScreen>
       if (AuthService.isLoggedIn) {
         final role = await AuthService.resolveRole();
         if (!mounted) return;
-        final route = role == 'farmer' ? '/farmer-home' : '/';
+        final route = role == 'farmer'
+            ? '/farmer-home'
+            : role == 'admin'
+                ? '/admin-home'
+                : '/';
         Navigator.pushReplacementNamed(context, route);
       } else {
         Navigator.pushReplacementNamed(context, '/onboarding');

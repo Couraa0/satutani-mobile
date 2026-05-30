@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/services/auth_service.dart';
 
@@ -43,15 +44,65 @@ class _RegisterScreenState extends State<RegisterScreen> {
   }
 
   void _register() async {
+    final name  = _nameCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final pass  = _passCtrl.text;
+
+    if (name.isEmpty || email.isEmpty || pass.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Semua field wajib diisi'),
+          backgroundColor: Color(0xFFD32F2F),
+        ),
+      );
+      return;
+    }
+    if (pass.length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Kata sandi minimal 6 karakter'),
+          backgroundColor: Color(0xFFD32F2F),
+        ),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) {
-      setState(() => _loading = false);
-      if (widget.role == 'farmer') {
-        Navigator.pushNamedAndRemoveUntil(context, '/farmer-home', (_) => false);
-      } else {
-        Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+    try {
+      final response = await Supabase.instance.client.auth.signUp(
+        email: email,
+        password: pass,
+        data: {'full_name': name, 'role': widget.role},
+      );
+
+      if (!mounted) return;
+
+      // Email confirmation required — no session yet
+      if (response.session == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pendaftaran berhasil! Cek email Anda untuk konfirmasi akun.'),
+            backgroundColor: Color(0xFF2E7D32),
+            duration: Duration(seconds: 4),
+          ),
+        );
+        Navigator.pushNamedAndRemoveUntil(context, '/login', (_) => false);
+        return;
       }
+
+      final route = widget.role == 'farmer' ? '/farmer-home' : '/';
+      Navigator.pushNamedAndRemoveUntil(context, route, (_) => false);
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: const Color(0xFFD32F2F),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -224,7 +275,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _socialBtn(label: 'G', color: const Color(0xFFDB4437)),
+                    _socialBtn(label: 'G', color: const Color(0xFFDB4437), onTap: _signInWithGoogle),
                     const SizedBox(width: 16),
                     _socialBtn(
                         icon: Icons.facebook_rounded,
