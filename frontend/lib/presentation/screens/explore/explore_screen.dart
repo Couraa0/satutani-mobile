@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/constants/strings.dart';
-import '../../../../data/mock/products_mock.dart';
-
+import '../../../../core/services/product_service.dart';
+import '../../../../data/models/product_model.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -15,6 +15,21 @@ class ExploreScreen extends StatefulWidget {
 class _ExploreScreenState extends State<ExploreScreen> {
   final _searchCtrl = TextEditingController();
   String _query = '';
+  late Future<List<ProductModel>> _productsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProducts();
+  }
+
+  void _loadProducts() {
+    setState(() {
+      _productsFuture = ProductService.getAllProducts(
+        search: _query.isEmpty ? null : _query,
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -25,10 +40,6 @@ class _ExploreScreenState extends State<ExploreScreen> {
   @override
   Widget build(BuildContext context) {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
-    
-    final results = _query.isEmpty 
-        ? mockProducts 
-        : mockProducts.where((p) => p.name.toLowerCase().contains(_query.toLowerCase())).toList();
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -49,18 +60,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
             child: TextField(
               controller: _searchCtrl,
               autofocus: true,
-              style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+              style:
+                  const TextStyle(fontSize: 14, color: AppColors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Cari produk...',
-                hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-                prefixIcon: const Icon(Icons.search_rounded, color: AppColors.textSecondary, size: 20),
+                hintStyle: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 14),
+                prefixIcon: const Icon(Icons.search_rounded,
+                    color: AppColors.textSecondary, size: 20),
                 suffixIcon: _query.isNotEmpty
                     ? GestureDetector(
                         onTap: () {
                           _searchCtrl.clear();
                           setState(() => _query = '');
                         },
-                        child: const Icon(Icons.close_rounded, color: AppColors.textSecondary, size: 18),
+                        child: const Icon(Icons.close_rounded,
+                            color: AppColors.textSecondary, size: 18),
                       )
                     : Container(
                         margin: const EdgeInsets.all(6),
@@ -69,11 +84,13 @@ class _ExploreScreenState extends State<ExploreScreen> {
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.grey.shade200),
                         ),
-                        child: const Icon(Icons.tune_rounded, color: AppColors.textPrimary, size: 16),
+                        child: const Icon(Icons.tune_rounded,
+                            color: AppColors.textPrimary, size: 16),
                       ),
                 filled: true,
                 fillColor: const Color(0xFFF7F8FA),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide(color: Colors.grey.shade200),
@@ -84,19 +101,57 @@ class _ExploreScreenState extends State<ExploreScreen> {
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+                  borderSide:
+                      const BorderSide(color: AppColors.primary, width: 1.5),
                 ),
               ),
-              onChanged: (val) => setState(() => _query = val),
+              onChanged: (val) {
+                setState(() => _query = val);
+                _loadProducts();
+              },
             ),
           ),
         ),
       ),
-      body: _query.isNotEmpty && results.isEmpty ? _buildEmptyState() : _buildResults(results),
+      body: FutureBuilder<List<ProductModel>>(
+        future: _productsFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.error_outline,
+                      size: 48, color: AppColors.textSecondary),
+                  const SizedBox(height: 16),
+                  Text('Error: ${snapshot.error}', textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: _loadProducts,
+                    child: const Text('Coba Lagi'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final results = snapshot.data ?? [];
+
+          if (_query.isNotEmpty && results.isEmpty) {
+            return _buildEmptyState();
+          }
+
+          return _buildResults(results);
+        },
+      ),
     );
   }
 
-  Widget _buildResults(List products) {
+  Widget _buildResults(List<ProductModel> products) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -138,18 +193,24 @@ class _ExploreScreenState extends State<ExploreScreen> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.grey.shade200),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 10, offset: const Offset(0, 4)),
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.02),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4)),
                   ],
                 ),
                 child: Row(
                   children: [
                     // Img
                     Container(
-                      width: 70, height: 70,
+                      width: 70,
+                      height: 70,
                       decoration: BoxDecoration(
                         color: AppColors.primaryLight,
                         borderRadius: BorderRadius.circular(12),
-                        image: DecorationImage(image: NetworkImage(product.imageUrls.first), fit: BoxFit.cover),
+                        image: DecorationImage(
+                            image: NetworkImage(product.imageUrls.first),
+                            fit: BoxFit.cover),
                       ),
                     ),
                     const SizedBox(width: 16),
@@ -158,9 +219,17 @@ class _ExploreScreenState extends State<ExploreScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(product.name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+                          Text(product.name,
+                              style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textPrimary)),
                           const SizedBox(height: 4),
-                          Text('Rp ${product.price}/${product.unit}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.primary)),
+                          Text('Rp ${product.price}/${product.unit}',
+                              style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary)),
                         ],
                       ),
                     ),
@@ -171,7 +240,8 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         color: AppColors.primary,
                         borderRadius: BorderRadius.circular(10),
                       ),
-                      child: const Icon(Icons.add_shopping_cart_rounded, color: Colors.white, size: 18),
+                      child: const Icon(Icons.add_shopping_cart_rounded,
+                          color: Colors.white, size: 18),
                     ),
                   ],
                 ),
@@ -189,17 +259,22 @@ class _ExploreScreenState extends State<ExploreScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 120, height: 120,
+            width: 120,
+            height: 120,
             decoration: BoxDecoration(
               color: AppColors.primaryLight,
               shape: BoxShape.circle,
             ),
-            child: const Center(child: Text('🔍', style: TextStyle(fontSize: 50))),
+            child:
+                const Center(child: Text('🔍', style: TextStyle(fontSize: 50))),
           ),
           const SizedBox(height: 24),
           const Text(
             'Item not found',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+            style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: AppColors.textPrimary),
           ),
           const SizedBox(height: 8),
           const Text(
