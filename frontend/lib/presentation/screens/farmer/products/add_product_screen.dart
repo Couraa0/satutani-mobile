@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/services/product_service.dart';
+import '../../../../core/services/storage_service.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -24,8 +26,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
   bool _isLoading = false;
   DateTime _harvestDate = DateTime.now().add(const Duration(days: 5));
 
-  // Simulates photos selected (0 = empty slot, used for demo)
+  // URL foto produk (public URL dari Supabase Storage). null = slot kosong.
   final List<String?> _photos = [null, null, null, null, null];
+  final ImagePicker _picker = ImagePicker();
+  int? _uploadingIndex;
 
   static const _categories = [
     'Sayuran',
@@ -259,13 +263,21 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         color: AppColors.primary.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.camera_alt_rounded,
-                          color: AppColors.primary, size: 30),
+                      child: _uploadingIndex != null
+                          ? const SizedBox(
+                              width: 30,
+                              height: 30,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.primary))
+                          : const Icon(Icons.camera_alt_rounded,
+                              color: AppColors.primary, size: 30),
                     ),
                     const SizedBox(height: 10),
-                    const Text(
-                      'Tap untuk upload foto',
-                      style: TextStyle(
+                    Text(
+                      _uploadingIndex != null
+                          ? 'Mengunggah foto...'
+                          : 'Tap untuk upload foto',
+                      style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           color: AppColors.primary,
                           fontSize: 14),
@@ -302,7 +314,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildPhotoThumb(int index) {
-    final isFirst = index == 0 && _photos[0] != null;
+    final url = _photos[index];
+    final isFirst = index == 0 && url != null;
+    final isUploading = _uploadingIndex == index;
     return GestureDetector(
       onTap: () => _addPhoto(index),
       child: Container(
@@ -315,15 +329,27 @@ class _AddProductScreenState extends State<AddProductScreen> {
             width: isFirst ? 2 : 1,
           ),
         ),
-        child: _photos[index] != null
+        child: isUploading
+            ? const Center(
+                child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2)))
+            : url != null
             ? Stack(children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(11),
-                  child: Container(
-                    color: AppColors.primary.withValues(alpha: 0.15),
-                    child: const Center(
-                        child: Icon(Icons.eco_rounded,
-                            color: AppColors.primary, size: 28)),
+                  child: Image.network(
+                    url,
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      child: const Center(
+                          child: Icon(Icons.broken_image_rounded,
+                              color: AppColors.primary, size: 24)),
+                    ),
                   ),
                 ),
                 if (isFirst)
@@ -353,8 +379,33 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  void _addPhoto(int index) {
-    setState(() => _photos[index] = 'mock_photo_$index');
+  Future<void> _addPhoto(int index) async {
+    if (_uploadingIndex != null) return;
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 1280,
+      );
+      if (picked == null) return;
+
+      setState(() => _uploadingIndex = index);
+      final bytes = await picked.readAsBytes();
+      final url = await StorageService.uploadProductImage(bytes, picked.name);
+      if (!mounted) return;
+      setState(() => _photos[index] = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal upload foto: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingIndex = null);
+    }
   }
 
   // ── Info Card ──────────────────────────────────────────────────────────────

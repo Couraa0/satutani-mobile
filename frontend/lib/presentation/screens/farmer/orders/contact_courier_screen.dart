@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../../core/constants/colors.dart';
-import '../../../../data/mock/orders_mock.dart';
+import '../../../../data/models/farmer_order.dart';
 
 // ── Simple courier data model ─────────────────────────────────────────────────
 
@@ -51,7 +51,7 @@ const _mockCouriers = [
 // ── Main Screen ───────────────────────────────────────────────────────────────
 
 class ContactCourierScreen extends StatefulWidget {
-  final OrderModel order;
+  final FarmerOrder order;
   const ContactCourierScreen({super.key, required this.order});
 
   @override
@@ -238,7 +238,7 @@ class _ContactCourierScreenState extends State<ContactCourierScreen>
         ]),
         const SizedBox(height: 12),
         Text(
-          o.items.map((i) => '${i.productName} ×${i.quantity}${i.unit}').join('\n'),
+          '${o.productName} ×${o.quantity.toStringAsFixed(0)}${o.unit}',
           style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w700, height: 1.5),
         ),
         const SizedBox(height: 10),
@@ -248,7 +248,7 @@ class _ContactCourierScreenState extends State<ContactCourierScreen>
           const Icon(Icons.location_on_rounded, color: Colors.white70, size: 15),
           const SizedBox(width: 6),
           Expanded(
-            child: Text(o.address, style: const TextStyle(color: Colors.white70, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
+            child: Text('Penerima: ${o.consumerName}', style: const TextStyle(color: Colors.white70, fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
         ]),
         const SizedBox(height: 6),
@@ -552,7 +552,7 @@ class _CourierCard extends StatelessWidget {
 
 class _ChatSheet extends StatefulWidget {
   final CourierModel courier;
-  final OrderModel order;
+  final FarmerOrder order;
   const _ChatSheet({required this.courier, required this.order});
 
   @override
@@ -650,7 +650,7 @@ class _ChatSheetState extends State<_ChatSheet> {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  'Pesanan #${widget.order.id}: ${widget.order.items.first.productName}',
+                  'Pesanan #${widget.order.id}: ${widget.order.productName}',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary),
                   overflow: TextOverflow.ellipsis,
                 ),
