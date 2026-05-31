@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/constants/colors.dart';
-import '../../../core/constants/strings.dart';
-import '../../../data/mock/products_mock.dart';
+import '../../../data/models/product_model.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   const ProductDetailScreen({super.key});
@@ -26,7 +25,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     if (args is ProductModel) {
       product = args;
     } else {
-      product = mockProducts.first; // Fallback
+      product = ProductModel.mockProducts.first; // Fallback
     }
   }
 
@@ -83,7 +82,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                               decoration: BoxDecoration(color: AppColors.primary.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                              child: Text('Stok: ${product.stock} ${product.unit}', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
+                              child: Text('Stok: ${product.stock.toStringAsFixed(0)} ${product.unit}', style: const TextStyle(color: AppColors.primary, fontSize: 12, fontWeight: FontWeight.w600)),
                             ),
                           ],
                         ),

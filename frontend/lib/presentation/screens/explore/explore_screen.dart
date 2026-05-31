@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../../core/constants/colors.dart';
-import '../../../../core/constants/strings.dart';
 import '../../../../core/services/product_service.dart';
 import '../../../../data/models/product_model.dart';
+import '../../../../data/cart_state.dart';
 
 class ExploreScreen extends StatefulWidget {
   const ExploreScreen({super.key});
@@ -186,7 +186,12 @@ class _ExploreScreenState extends State<ExploreScreen> {
             separatorBuilder: (_, __) => const SizedBox(height: 12),
             itemBuilder: (_, i) {
               final product = products[i];
-              return Container(
+              return MouseRegion(
+                cursor: SystemMouseCursors.click,
+                child: GestureDetector(
+                  onTap: () => Navigator.pushNamed(context, '/product-detail',
+                      arguments: product),
+                  child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white,
@@ -233,17 +238,23 @@ class _ExploreScreenState extends State<ExploreScreen> {
                         ],
                       ),
                     ),
-                    // Add Button
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.primary,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(Icons.add_shopping_cart_rounded,
-                          color: Colors.white, size: 18),
+                    // Add Button (with hover effect)
+                    _AddToCartButton(
+                      onPressed: () {
+                        addToCart(product);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                                '${product.name} ditambahkan ke keranjang'),
+                            duration: const Duration(seconds: 1),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                      },
                     ),
                   ],
+                ),
+                  ),
                 ),
               );
             },
@@ -283,6 +294,50 @@ class _ExploreScreenState extends State<ExploreScreen> {
           ),
           const SizedBox(height: 80), // offset for keyboard
         ],
+      ),
+    );
+  }
+}
+
+/// Tombol tambah-ke-keranjang dengan efek hover (cursor & warna) di web/desktop.
+class _AddToCartButton extends StatefulWidget {
+  final VoidCallback onPressed;
+  const _AddToCartButton({required this.onPressed});
+
+  @override
+  State<_AddToCartButton> createState() => _AddToCartButtonState();
+}
+
+class _AddToCartButtonState extends State<_AddToCartButton> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final hoverColor = Color.lerp(AppColors.primary, Colors.black, 0.18)!;
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hover = true),
+      onExit: (_) => setState(() => _hover = false),
+      child: GestureDetector(
+        onTap: widget.onPressed,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: _hover ? hoverColor : AppColors.primary,
+            borderRadius: BorderRadius.circular(10),
+            boxShadow: _hover
+                ? [
+                    BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.45),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3)),
+                  ]
+                : const [],
+          ),
+          child: const Icon(Icons.add_shopping_cart_rounded,
+              color: Colors.white, size: 18),
+        ),
       ),
     );
   }

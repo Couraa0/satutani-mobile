@@ -1,18 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/strings.dart';
-import '../../../data/mock/products_mock.dart';
-
-class CartItem {
-  final ProductModel product;
-  int quantity;
-  CartItem({required this.product, this.quantity = 1});
-}
-
-final List<CartItem> globalCart = [
-  CartItem(product: mockProducts[0], quantity: 2),
-  CartItem(product: mockProducts[1], quantity: 3),
-];
+import '../../../data/cart_state.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -30,25 +19,32 @@ class _CartScreenState extends State<CartScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Text('${AppStrings.cartTitle} (${cart.length} item)'),
-      ),
-      body: cart.isEmpty
-          ? _buildEmpty()
-          : Column(
-              children: [
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: cart.length,
-                    itemBuilder: (context, index) => _buildCartItem(index),
-                  ),
+    // Dibungkus ValueListenableBuilder agar tab Keranjang ikut update saat
+    // produk ditambahkan dari layar lain (CartScreen hidup di IndexedStack).
+    return ValueListenableBuilder<int>(
+      valueListenable: cartNotifier,
+      builder: (context, _, __) {
+        return Scaffold(
+          backgroundColor: AppColors.background,
+          appBar: AppBar(
+            title: Text('${AppStrings.cartTitle} (${cart.length} item)'),
+          ),
+          body: cart.isEmpty
+              ? _buildEmpty()
+              : Column(
+                  children: [
+                    Expanded(
+                      child: ListView.builder(
+                        padding: const EdgeInsets.all(16),
+                        itemCount: cart.length,
+                        itemBuilder: (context, index) => _buildCartItem(index),
+                      ),
+                    ),
+                    _buildSummary(),
+                  ],
                 ),
-                _buildSummary(),
-              ],
-            ),
+        );
+      },
     );
   }
 
@@ -106,20 +102,14 @@ class _CartScreenState extends State<CartScreen> {
           Column(
             children: [
               GestureDetector(
-                onTap: () => setState(() => cart.removeAt(index)),
+                onTap: () => removeFromCart(index),
                 child: const Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 20),
               ),
               const SizedBox(height: 8),
               _CartStepper(
                 quantity: item.quantity,
-                onDecrement: () => setState(() {
-                  if (item.quantity > 1) {
-                    item.quantity--;
-                  } else {
-                    cart.removeAt(index);
-                  }
-                }),
-                onIncrement: () => setState(() => item.quantity++),
+                onDecrement: () => decrementQty(index),
+                onIncrement: () => incrementQty(index),
               ),
             ],
           ),
