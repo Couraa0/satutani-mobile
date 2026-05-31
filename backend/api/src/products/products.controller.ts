@@ -21,6 +21,12 @@ export class ProductsController {
     });
   }
 
+  @Get('farmer/me')
+  @UseGuards(AuthGuard)
+  findMyProducts(@Request() req) {
+    return this.productsService.findByFarmer(req.user.id);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
