@@ -35,6 +35,10 @@ class AuthService {
   static bool get isLoggedIn => auth.currentSession != null;
   static User? get currentUser => auth.currentUser;
 
+  /// JWT access token untuk dikirim ke backend (AuthGuard memverifikasi via
+  /// supabase.auth.getUser(token)). JANGAN pakai currentUser.id sebagai token.
+  static String? get accessToken => auth.currentSession?.accessToken;
+
   /// Ambil role user dari tabel profiles.
   /// Jika ada pending role dari OAuth register, update dulu lalu hapus.
   static Future<String> resolveRole() async {

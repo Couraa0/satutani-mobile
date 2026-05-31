@@ -62,7 +62,7 @@ class ProductService {
   /// Dapatkan semua produk milik farmer yang login
   static Future<List<ProductModel>> getFarmerProducts() async {
     try {
-      final token = AuthService.currentUser?.id;
+      final token = AuthService.accessToken;
       if (token == null) throw Exception('User tidak terautentikasi');
 
       final uri = Uri.parse('$baseUrl/products/farmer/me');
@@ -85,7 +85,7 @@ class ProductService {
   /// Buat produk baru
   static Future<ProductModel> createProduct(Map<String, dynamic> data) async {
     try {
-      final token = AuthService.currentUser?.id;
+      final token = AuthService.accessToken;
       if (token == null) throw Exception('User tidak terautentikasi');
 
       final uri = Uri.parse('$baseUrl/products');
@@ -113,7 +113,7 @@ class ProductService {
   static Future<ProductModel> updateProduct(
       String id, Map<String, dynamic> data) async {
     try {
-      final token = AuthService.currentUser?.id;
+      final token = AuthService.accessToken;
       if (token == null) throw Exception('User tidak terautentikasi');
 
       final uri = Uri.parse('$baseUrl/products/$id');
@@ -140,7 +140,7 @@ class ProductService {
   /// Hapus produk
   static Future<void> deleteProduct(String id) async {
     try {
-      final token = AuthService.currentUser?.id;
+      final token = AuthService.accessToken;
       if (token == null) throw Exception('User tidak terautentikasi');
 
       final uri = Uri.parse('$baseUrl/products/$id');
