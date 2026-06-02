@@ -35,31 +35,54 @@ Aplikasi ini dibangun menggunakan **Flutter** dengan arsitektur yang modern:
 
 ## 🚀 Cara Menjalankan Project (Getting Started)
 
-### 1. Prasyarat (Requirements)
-Pastikan Anda sudah menginstall:
-- [Flutter SDK](https://docs.flutter.dev/get-started/install)
-- Android Studio / VS Code
-- Git
+Proyek ini terdiri dari 3 bagian utama yang harus dijalankan secara bersamaan di terminal yang berbeda.
 
-### 2. Instalasi & Menjalankan
-1. *Clone* repository ini:
-   ```bash
-   git clone https://github.com/Couraa0/satutani-mobile.git
-   ```
-2. Masuk ke direktori mobile app:
-   ```bash
-   cd satutani_mobile
-   ```
-3. Unduh semua dependencies:
-   ```bash
-   flutter pub get
-   ```
-4. Jalankan aplikasi (Pilih target device: Android/iOS emulator atau Chrome):
-   ```bash
-   flutter run
-   ```
+### Prasyarat (Requirements)
+- **Node.js** & **npm** (untuk NestJS Backend)
+- **Python 3.9+** (untuk AI Server)
+- **Flutter SDK** (untuk Frontend Mobile/Web)
 
-*(Khusus untuk Desktop/Web Localhost, tampilan dipaksa berbentuk bingkai ponsel otomatis berkat fitur Device Preview).*
+---
+
+### 🖥️ Terminal 1 — Backend (NestJS API)
+Menjalankan API utama (otomatis berjalan di port 4000).
+
+```bash
+cd backend/api
+npm install
+npm run start:dev
+```
+*(Catatan: pastikan file `.env` di dalam `backend/api` sudah mengarah ke `AI_SERVICE_URL=http://localhost:8001`)*
+
+---
+
+### 🖥️ Terminal 2 — AI Chatbot Server (FastAPI/Python)
+Menjalankan layanan AI di port 8001 (untuk menghindari bentrok dengan port 8000).
+
+```bash
+cd backend/ai
+# Aktifkan virtual environment (Windows)
+.\.venv\Scripts\Activate.ps1
+# Jalankan server
+$env:PORT=8001; python main.py
+```
+*(Atau menggunakan uvicorn: `uvicorn main:app --host 0.0.0.0 --port 8001 --reload`)*
+
+---
+
+### 🖥️ Terminal 3 — Frontend (Flutter)
+Menjalankan aplikasi mobile. **Wajib menyertakan `.env.json`** agar koneksi ke Supabase dan Backend berhasil.
+
+```bash
+cd frontend
+flutter pub get
+
+# Menjalankan di Chrome (Web) dengan port 3000
+flutter run -d chrome --dart-define-from-file=.env.json --web-port=3000
+
+# Menjalankan di Emulator/Android
+flutter run --dart-define-from-file=.env.json
+```
 
 ---
 

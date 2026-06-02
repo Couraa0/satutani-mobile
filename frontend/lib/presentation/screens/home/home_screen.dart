@@ -16,6 +16,12 @@ class HomeScreen extends StatelessWidget {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
     return Scaffold(
       backgroundColor: Colors.white,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.pushNamed(context, '/chat'),
+        backgroundColor: AppColors.primary,
+        elevation: 4,
+        child: const Icon(Icons.smart_toy_rounded, color: Colors.white),
+      ),
       body: Column(
         children: [
           _buildHeader(context),
