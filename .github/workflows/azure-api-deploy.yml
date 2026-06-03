@@ -32,10 +32,11 @@ jobs:
         npm install
         npx prisma generate
         npm run build
+        npm prune --omit=dev
 
     - name: Zip artifact for deployment
       working-directory: backend/api
-      run: zip -r release.zip . -x "*.git*" "src/*" "test/*" "node_modules/*"
+      run: zip -r release.zip . -x "*.git*" "src/*"
 
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v3
