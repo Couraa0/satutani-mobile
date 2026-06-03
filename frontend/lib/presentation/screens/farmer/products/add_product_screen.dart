@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../../../core/constants/colors.dart';
+import '../../../../core/services/product_service.dart';
+import '../../../../core/services/storage_service.dart';
 
 class AddProductScreen extends StatefulWidget {
   const AddProductScreen({super.key});
@@ -20,13 +23,22 @@ class _AddProductScreenState extends State<AddProductScreen> {
   String _selectedUnit = 'kg';
   int _stock = 50;
   bool _preOrderEnabled = false;
+  bool _isLoading = false;
   DateTime _harvestDate = DateTime.now().add(const Duration(days: 5));
 
-  // Simulates photos selected (0 = empty slot, used for demo)
+  // URL foto produk (public URL dari Supabase Storage). null = slot kosong.
   final List<String?> _photos = [null, null, null, null, null];
+  final ImagePicker _picker = ImagePicker();
+  int? _uploadingIndex;
 
   static const _categories = [
-    'Sayuran', 'Buah', 'Beras & Biji', 'Rempah', 'Umbi', 'Kacang-kacangan', 'Lainnya',
+    'Sayuran',
+    'Buah',
+    'Beras & Biji',
+    'Rempah',
+    'Umbi',
+    'Kacang-kacangan',
+    'Lainnya',
   ];
 
   static const _units = ['kg', 'gram', 'ikat', 'buah', 'liter', 'karung'];
@@ -59,22 +71,73 @@ class _AddProductScreenState extends State<AddProductScreen> {
     if (picked != null) setState(() => _harvestDate = picked);
   }
 
-  void _saveProduct() {
+  Future<void> _saveProduct() async {
     if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(children: [
-            Icon(Icons.check_circle_rounded, color: Colors.white),
-            SizedBox(width: 10),
-            Text('Produk berhasil disimpan!', style: TextStyle(fontWeight: FontWeight.w600)),
-          ]),
-          backgroundColor: AppColors.success,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
-      Navigator.pop(context);
+      setState(() => _isLoading = true);
+
+      try {
+        // Map kategori UI ke kategori database
+        final categoryMap = {
+          'Sayuran': 'vegetable',
+          'Buah': 'fruit',
+          'Beras & Biji': 'grain',
+          'Rempah': 'spice',
+          'Umbi': 'other',
+          'Kacang-kacangan': 'other',
+          'Lainnya': 'other',
+        };
+
+        // Prepare product data
+        final productData = {
+          'name': _nameCtrl.text.trim(),
+          'description': _descCtrl.text.trim(),
+          'price': double.parse(_priceCtrl.text),
+          'unit': _selectedUnit,
+          'stock': _stock,
+          'category': categoryMap[_selectedCategory],
+          'imageUrls': _photos.whereType<String>().toList(),
+          'isAvailable': true,
+          'isPreOrder': _preOrderEnabled,
+          if (_preOrderEnabled)
+            'estimatedHarvestDate': _harvestDate.toIso8601String(),
+        };
+
+        // Call API
+        await ProductService.createProduct(productData);
+
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Row(children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white),
+                SizedBox(width: 10),
+                Text('Produk berhasil ditambahkan!',
+                    style: TextStyle(fontWeight: FontWeight.w600)),
+              ]),
+              backgroundColor: AppColors.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+          Navigator.pop(
+              context, true); // Return true to indicate refresh needed
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: AppColors.danger,
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(16),
+            ),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isLoading = false);
+      }
     }
   }
 
@@ -100,7 +163,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
             onPressed: _saveProduct,
             child: const Text(
               'Simpan',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 15),
+              style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 15),
             ),
           ),
         ],
@@ -153,7 +219,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 2)),
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2)),
         ],
       ),
       child: child,
@@ -194,17 +263,30 @@ class _AddProductScreenState extends State<AddProductScreen> {
                         color: AppColors.primary.withValues(alpha: 0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.camera_alt_rounded, color: AppColors.primary, size: 30),
+                      child: _uploadingIndex != null
+                          ? const SizedBox(
+                              width: 30,
+                              height: 30,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.primary))
+                          : const Icon(Icons.camera_alt_rounded,
+                              color: AppColors.primary, size: 30),
                     ),
                     const SizedBox(height: 10),
-                    const Text(
-                      'Tap untuk upload foto',
-                      style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.primary, fontSize: 14),
+                    Text(
+                      _uploadingIndex != null
+                          ? 'Mengunggah foto...'
+                          : 'Tap untuk upload foto',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.primary,
+                          fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     const Text(
                       'Maks. 5 foto · JPG, PNG',
-                      style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      style: TextStyle(
+                          fontSize: 12, color: AppColors.textSecondary),
                     ),
                   ],
                 ),
@@ -232,7 +314,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
   }
 
   Widget _buildPhotoThumb(int index) {
-    final isFirst = index == 0 && _photos[0] != null;
+    final url = _photos[index];
+    final isFirst = index == 0 && url != null;
+    final isUploading = _uploadingIndex == index;
     return GestureDetector(
       onTap: () => _addPhoto(index),
       child: Container(
@@ -245,26 +329,47 @@ class _AddProductScreenState extends State<AddProductScreen> {
             width: isFirst ? 2 : 1,
           ),
         ),
-        child: _photos[index] != null
+        child: isUploading
+            ? const Center(
+                child: SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2)))
+            : url != null
             ? Stack(children: [
                 ClipRRect(
                   borderRadius: BorderRadius.circular(11),
-                  child: Container(
-                    color: AppColors.primary.withValues(alpha: 0.15),
-                    child: const Center(child: Icon(Icons.eco_rounded, color: AppColors.primary, size: 28)),
+                  child: Image.network(
+                    url,
+                    width: 72,
+                    height: 72,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      color: AppColors.primary.withValues(alpha: 0.15),
+                      child: const Center(
+                          child: Icon(Icons.broken_image_rounded,
+                              color: AppColors.primary, size: 24)),
+                    ),
                   ),
                 ),
                 if (isFirst)
                   Positioned(
-                    bottom: 4, left: 0, right: 0,
+                    bottom: 4,
+                    left: 0,
+                    right: 0,
                     child: Center(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: AppColors.primary,
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text('Utama', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+                        child: const Text('Utama',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ),
@@ -274,8 +379,33 @@ class _AddProductScreenState extends State<AddProductScreen> {
     );
   }
 
-  void _addPhoto(int index) {
-    setState(() => _photos[index] = 'mock_photo_$index');
+  Future<void> _addPhoto(int index) async {
+    if (_uploadingIndex != null) return;
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 1280,
+      );
+      if (picked == null) return;
+
+      setState(() => _uploadingIndex = index);
+      final bytes = await picked.readAsBytes();
+      final url = await StorageService.uploadProductImage(bytes, picked.name);
+      if (!mounted) return;
+      setState(() => _photos[index] = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal upload foto: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingIndex = null);
+    }
   }
 
   // ── Info Card ──────────────────────────────────────────────────────────────
@@ -288,7 +418,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
         _buildTextField(
           controller: _nameCtrl,
           hint: 'cth. Tomat Segar Organik Grade A',
-          validator: (v) => (v == null || v.isEmpty) ? 'Nama produk wajib diisi' : null,
+          validator: (v) =>
+              (v == null || v.isEmpty) ? 'Nama produk wajib diisi' : null,
         ),
         const SizedBox(height: 16),
         _buildInputLabel('Kategori'),
@@ -324,7 +455,9 @@ class _AddProductScreenState extends State<AddProductScreen> {
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           suffix: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text(_selectedUnit, style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.primary)),
+            child: Text(_selectedUnit,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600, color: AppColors.primary)),
           ),
         ),
         const SizedBox(height: 12),
@@ -334,15 +467,20 @@ class _AddProductScreenState extends State<AddProductScreen> {
           decoration: BoxDecoration(
             color: const Color(0xFFE3F2FD),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF1976D2).withValues(alpha: 0.3)),
+            border: Border.all(
+                color: const Color(0xFF1976D2).withValues(alpha: 0.3)),
           ),
           child: Row(children: [
-            const Icon(Icons.auto_awesome_rounded, color: Color(0xFF1976D2), size: 18),
+            const Icon(Icons.auto_awesome_rounded,
+                color: Color(0xFF1976D2), size: 18),
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
                 'Harga AI menyarankan Rp 7.500–9.000/kg untuk Tomat saat ini',
-                style: TextStyle(fontSize: 12, color: Color(0xFF1976D2), fontWeight: FontWeight.w500),
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Color(0xFF1976D2),
+                    fontWeight: FontWeight.w500),
               ),
             ),
           ]),
@@ -369,27 +507,38 @@ class _AddProductScreenState extends State<AddProductScreen> {
               border: Border.all(color: AppColors.border),
             ),
             child: Row(children: [
-              const Icon(Icons.calendar_month_rounded, color: AppColors.primary, size: 20),
+              const Icon(Icons.calendar_month_rounded,
+                  color: AppColors.primary, size: 20),
               const SizedBox(width: 10),
               Text(
                 '${_harvestDate.day} ${_monthName(_harvestDate.month)} ${_harvestDate.year}',
-                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+                style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: AppColors.textPrimary),
               ),
               const Spacer(),
-              const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
+              const Icon(Icons.chevron_right_rounded,
+                  color: AppColors.textSecondary),
             ]),
           ),
         ),
         const SizedBox(height: 20),
         Row(children: [
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Aktifkan Pre-Order', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-            const SizedBox(height: 2),
-            const Text(
-              'Pembeli bisa pesan sebelum panen',
-              style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
-            ),
-          ])),
+          Expanded(
+              child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                const Text('Aktifkan Pre-Order',
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                const SizedBox(height: 2),
+                const Text(
+                  'Pembeli bisa pesan sebelum panen',
+                  style:
+                      TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                ),
+              ])),
           Switch.adaptive(
             value: _preOrderEnabled,
             activeColor: AppColors.primary,
@@ -403,7 +552,8 @@ class _AddProductScreenState extends State<AddProductScreen> {
             decoration: BoxDecoration(
               color: AppColors.secondaryLight,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
+              border:
+                  Border.all(color: AppColors.secondary.withValues(alpha: 0.3)),
             ),
             child: const Row(children: [
               Text('🌾', style: TextStyle(fontSize: 18)),
@@ -411,7 +561,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
               Expanded(
                 child: Text(
                   'Pre-Order aktif: Pembeli bisa reservasi hingga 3 hari sebelum panen',
-                  style: TextStyle(fontSize: 12, color: AppColors.textPrimary, fontWeight: FontWeight.w500),
+                  style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w500),
                 ),
               ),
             ]),
@@ -429,29 +582,42 @@ class _AddProductScreenState extends State<AddProductScreen> {
       child: Column(children: [
         // Preview button
         OutlinedButton.icon(
-          onPressed: _showPreview,
+          onPressed: _isLoading ? null : _showPreview,
           icon: const Icon(Icons.visibility_outlined, size: 18),
-          label: const Text('Pratinjau Produk', style: TextStyle(fontWeight: FontWeight.w600)),
+          label: const Text('Pratinjau Produk',
+              style: TextStyle(fontWeight: FontWeight.w600)),
           style: OutlinedButton.styleFrom(
             foregroundColor: AppColors.primary,
             side: const BorderSide(color: AppColors.primary, width: 1.5),
             minimumSize: const Size(double.infinity, 50),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
         ),
         const SizedBox(height: 12),
         // Save button
         ElevatedButton.icon(
-          onPressed: _saveProduct,
-          icon: const Icon(Icons.check_rounded, color: Colors.white, size: 20),
-          label: const Text(
-            'Simpan Produk',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
+          onPressed: _isLoading ? null : _saveProduct,
+          icon: _isLoading
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                )
+              : const Icon(Icons.check_rounded, color: Colors.white, size: 20),
+          label: Text(
+            _isLoading ? 'Menyimpan...' : 'Simpan Produk',
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
           ),
           style: ElevatedButton.styleFrom(
             backgroundColor: AppColors.primary,
             minimumSize: const Size(double.infinity, 54),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             elevation: 2,
             shadowColor: AppColors.primary.withValues(alpha: 0.4),
           ),
@@ -467,7 +633,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
       padding: const EdgeInsets.only(bottom: 8),
       child: Text(
         label,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary),
+        style: const TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary),
       ),
     );
   }
@@ -490,10 +659,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
       style: const TextStyle(fontSize: 14),
       decoration: InputDecoration(
         hintText: hint,
-        hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 13),
+        hintStyle:
+            const TextStyle(color: AppColors.textSecondary, fontSize: 13),
         filled: true,
         fillColor: AppColors.background,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: AppColors.border),
@@ -555,20 +726,34 @@ class _AddProductScreenState extends State<AddProductScreen> {
           controller: _priceCtrl,
           keyboardType: TextInputType.number,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          validator: (v) => (v == null || v.isEmpty) ? 'Harga wajib diisi' : null,
+          validator: (v) =>
+              (v == null || v.isEmpty) ? 'Harga wajib diisi' : null,
           style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           decoration: InputDecoration(
             prefixText: 'Rp ',
-            prefixStyle: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 14),
+            prefixStyle: const TextStyle(
+                color: AppColors.primary,
+                fontWeight: FontWeight.w700,
+                fontSize: 14),
             hintText: '8.000',
             hintStyle: const TextStyle(color: AppColors.textSecondary),
             filled: true,
             fillColor: AppColors.background,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.border)),
-            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.primary, width: 1.5)),
-            errorBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: const BorderSide(color: AppColors.danger)),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border)),
+            enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.border)),
+            focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide:
+                    const BorderSide(color: AppColors.primary, width: 1.5)),
+            errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: const BorderSide(color: AppColors.danger)),
           ),
         ),
       ),
@@ -584,11 +769,17 @@ class _AddProductScreenState extends State<AddProductScreen> {
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             value: _selectedUnit,
-            icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.primary, size: 18),
-            style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.primary),
+            icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                color: AppColors.primary, size: 18),
+            style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: AppColors.primary),
             dropdownColor: AppColors.surface,
             borderRadius: BorderRadius.circular(12),
-            items: _units.map((u) => DropdownMenuItem(value: u, child: Text('/$u'))).toList(),
+            items: _units
+                .map((u) => DropdownMenuItem(value: u, child: Text('/$u')))
+                .toList(),
             onChanged: (v) => setState(() => _selectedUnit = v!),
           ),
         ),
@@ -613,7 +804,10 @@ class _AddProductScreenState extends State<AddProductScreen> {
           child: Center(
             child: Text(
               '$_stock $_selectedUnit',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, color: AppColors.textPrimary),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 16,
+                  color: AppColors.textPrimary),
             ),
           ),
         ),
@@ -657,8 +851,11 @@ class _AddProductScreenState extends State<AddProductScreen> {
           child: Column(children: [
             const SizedBox(height: 8),
             Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(color: AppColors.border, borderRadius: BorderRadius.circular(2)),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 16),
             const Text(
@@ -666,60 +863,78 @@ class _AddProductScreenState extends State<AddProductScreen> {
               style: TextStyle(fontWeight: FontWeight.w700, fontSize: 18),
             ),
             Expanded(
-              child: ListView(controller: ctrl, padding: const EdgeInsets.all(20), children: [
-                // Mock product preview card
-                Container(
-                  height: 200,
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryLight,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-                  child: const Center(child: Icon(Icons.eco_rounded, color: AppColors.primary, size: 60)),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  _nameCtrl.text.isEmpty ? 'Nama Produk' : _nameCtrl.text,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 20),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  _priceCtrl.text.isEmpty
-                      ? 'Rp –/$_selectedUnit'
-                      : 'Rp ${_priceCtrl.text}/$_selectedUnit',
-                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 18),
-                ),
-                const SizedBox(height: 8),
-                Row(children: [
-                  _previewChip(Icons.category_rounded, _selectedCategory),
-                  const SizedBox(width: 8),
-                  _previewChip(Icons.inventory_2_outlined, '$_stock $_selectedUnit'),
-                  if (_preOrderEnabled) ...[
-                    const SizedBox(width: 8),
-                    _previewChip(Icons.pending_actions_rounded, 'Pre-Order'),
-                  ],
-                ]),
-                const SizedBox(height: 12),
-                Text(
-                  _descCtrl.text.isEmpty ? 'Deskripsi produk akan ditampilkan di sini.' : _descCtrl.text,
-                  style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.6),
-                ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: AppColors.secondaryLight,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(children: [
-                    const Icon(Icons.calendar_today_rounded, color: AppColors.warning, size: 18),
-                    const SizedBox(width: 8),
+              child: ListView(
+                  controller: ctrl,
+                  padding: const EdgeInsets.all(20),
+                  children: [
+                    // Mock product preview card
+                    Container(
+                      height: 200,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryLight,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: const Center(
+                          child: Icon(Icons.eco_rounded,
+                              color: AppColors.primary, size: 60)),
+                    ),
+                    const SizedBox(height: 16),
                     Text(
-                      'Estimasi Panen: ${_harvestDate.day} ${_monthName(_harvestDate.month)} ${_harvestDate.year}',
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      _nameCtrl.text.isEmpty ? 'Nama Produk' : _nameCtrl.text,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 20),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _priceCtrl.text.isEmpty
+                          ? 'Rp –/$_selectedUnit'
+                          : 'Rp ${_priceCtrl.text}/$_selectedUnit',
+                      style: const TextStyle(
+                          color: AppColors.primary,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 18),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(children: [
+                      _previewChip(Icons.category_rounded, _selectedCategory),
+                      const SizedBox(width: 8),
+                      _previewChip(
+                          Icons.inventory_2_outlined, '$_stock $_selectedUnit'),
+                      if (_preOrderEnabled) ...[
+                        const SizedBox(width: 8),
+                        _previewChip(
+                            Icons.pending_actions_rounded, 'Pre-Order'),
+                      ],
+                    ]),
+                    const SizedBox(height: 12),
+                    Text(
+                      _descCtrl.text.isEmpty
+                          ? 'Deskripsi produk akan ditampilkan di sini.'
+                          : _descCtrl.text,
+                      style: const TextStyle(
+                          fontSize: 14,
+                          color: AppColors.textSecondary,
+                          height: 1.6),
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: AppColors.secondaryLight,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(children: [
+                        const Icon(Icons.calendar_today_rounded,
+                            color: AppColors.warning, size: 18),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Estimasi Panen: ${_harvestDate.day} ${_monthName(_harvestDate.month)} ${_harvestDate.year}',
+                          style: const TextStyle(
+                              fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ]),
                     ),
                   ]),
-                ),
-              ]),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
@@ -728,9 +943,12 @@ class _AddProductScreenState extends State<AddProductScreen> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primary,
                   minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
                 ),
-                child: const Text('Kembali & Edit', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                child: const Text('Kembali & Edit',
+                    style: TextStyle(
+                        color: Colors.white, fontWeight: FontWeight.w700)),
               ),
             ),
           ]),
@@ -749,13 +967,30 @@ class _AddProductScreenState extends State<AddProductScreen> {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 13, color: AppColors.primary),
         const SizedBox(width: 4),
-        Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.primary)),
+        Text(label,
+            style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+                color: AppColors.primary)),
       ]),
     );
   }
 
   String _monthName(int month) {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'Mei',
+      'Jun',
+      'Jul',
+      'Agu',
+      'Sep',
+      'Okt',
+      'Nov',
+      'Des'
+    ];
     return months[month - 1];
   }
 }

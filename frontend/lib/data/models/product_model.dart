@@ -42,51 +42,85 @@ class ProductModel {
   });
 
   factory ProductModel.fromJson(Map<String, dynamic> json) {
+    // Handle nested farmer object from API
+    final farmer = json['farmer'] as Map<String, dynamic>?;
+
     return ProductModel(
       id: json['id']?.toString() ?? '',
       name: json['name'] ?? '',
       description: json['description'] ?? '',
-      price: (json['price'] ?? 0).toDouble(),
+      price: _parseDouble(json['price']),
       unit: json['unit'] ?? 'kg',
-      rating: (json['rating'] ?? 4.5).toDouble(),
-      reviewCount: json['reviewCount'] ?? 0,
-      stock: (json['stock'] ?? 0).toDouble(),
+      rating: _parseDouble(json['rating']),
+      reviewCount: json['reviewCount'] ?? json['review_count'] ?? 0,
+      stock: _parseDouble(json['stock']),
       category: json['category'] ?? '',
-      imageUrls: List<String>.from(json['imageUrls'] ?? []),
-      farmerId: json['farmerId']?.toString() ?? '',
-      farmerName: json['farmerName'] ?? '',
-      farmerAvatarUrl: json['farmerAvatarUrl'] ?? '',
-      isAvailable: json['isAvailable'] ?? true,
-      isAiPrice: json['isAiPrice'] ?? false,
-      isPreOrder: json['isPreOrder'] ?? false,
+      imageUrls:
+          List<String>.from(json['imageUrls'] ?? json['image_urls'] ?? []),
+      farmerId: json['farmerId'] ??
+          json['farmer_id'] ??
+          farmer?['id']?.toString() ??
+          '',
+      farmerName: json['farmerName'] ?? farmer?['name'] ?? '',
+      farmerAvatarUrl: json['farmerAvatarUrl'] ??
+          farmer?['avatarUrl'] ??
+          farmer?['avatar_url'] ??
+          '',
+      isAvailable: json['isAvailable'] ?? json['is_available'] ?? true,
+      isAiPrice: json['isAiPrice'] ?? json['is_ai_price'] ?? false,
+      isPreOrder: json['isPreOrder'] ?? json['is_pre_order'] ?? false,
+      estimatedHarvestDate: json['estimatedHarvestDate'] != null
+          ? DateTime.tryParse(json['estimatedHarvestDate'])
+          : json['estimated_harvest_date'] != null
+              ? DateTime.tryParse(json['estimated_harvest_date'])
+              : null,
+      preOrderTarget: json['preOrderTarget'] != null
+          ? _parseDouble(json['preOrderTarget'])
+          : json['pre_order_target'] != null
+              ? _parseDouble(json['pre_order_target'])
+              : null,
+      preOrderFilled: json['preOrderFilled'] != null
+          ? _parseDouble(json['preOrderFilled'])
+          : json['pre_order_filled'] != null
+              ? _parseDouble(json['pre_order_filled'])
+              : null,
     );
   }
 
+  static double _parseDouble(dynamic value) {
+    if (value == null) return 0.0;
+    if (value is double) return value;
+    if (value is int) return value.toDouble();
+    if (value is String) return double.tryParse(value) ?? 0.0;
+    return 0.0;
+  }
+
   Map<String, dynamic> toJson() => {
-    'id': id,
-    'name': name,
-    'description': description,
-    'price': price,
-    'unit': unit,
-    'rating': rating,
-    'reviewCount': reviewCount,
-    'stock': stock,
-    'category': category,
-    'imageUrls': imageUrls,
-    'farmerId': farmerId,
-    'farmerName': farmerName,
-    'farmerAvatarUrl': farmerAvatarUrl,
-    'isAvailable': isAvailable,
-    'isAiPrice': isAiPrice,
-    'isPreOrder': isPreOrder,
-  };
+        'id': id,
+        'name': name,
+        'description': description,
+        'price': price,
+        'unit': unit,
+        'rating': rating,
+        'reviewCount': reviewCount,
+        'stock': stock,
+        'category': category,
+        'imageUrls': imageUrls,
+        'farmerId': farmerId,
+        'farmerName': farmerName,
+        'farmerAvatarUrl': farmerAvatarUrl,
+        'isAvailable': isAvailable,
+        'isAiPrice': isAiPrice,
+        'isPreOrder': isPreOrder,
+      };
 
   // Mock data
   static List<ProductModel> mockProducts = [
     const ProductModel(
       id: '1',
       name: 'Beras Premium Cianjur',
-      description: 'Beras premium kualitas super dari lahan organik Cianjur. Dipanen langsung oleh petani berpengalaman dengan metode tradisional yang terjaga kualitasnya.',
+      description:
+          'Beras premium kualitas super dari lahan organik Cianjur. Dipanen langsung oleh petani berpengalaman dengan metode tradisional yang terjaga kualitasnya.',
       price: 14000,
       unit: 'kg',
       rating: 4.8,
@@ -106,7 +140,8 @@ class ProductModel {
     const ProductModel(
       id: '2',
       name: 'Bayam Organik Segar',
-      description: 'Bayam organik segar dipanen pagi hari, tanpa pestisida kimia. Kaya nutrisi dan cocok untuk konsumsi sehari-hari.',
+      description:
+          'Bayam organik segar dipanen pagi hari, tanpa pestisida kimia. Kaya nutrisi dan cocok untuk konsumsi sehari-hari.',
       price: 5000,
       unit: 'ikat',
       rating: 4.6,
@@ -125,7 +160,8 @@ class ProductModel {
     const ProductModel(
       id: '3',
       name: 'Mangga Harum Manis',
-      description: 'Mangga harum manis dari kebun Indramayu. Manis, segar, dan langsung dari pohon.',
+      description:
+          'Mangga harum manis dari kebun Indramayu. Manis, segar, dan langsung dari pohon.',
       price: 18000,
       unit: 'kg',
       rating: 4.9,
@@ -144,7 +180,8 @@ class ProductModel {
     const ProductModel(
       id: '4',
       name: 'Tomat Cherry Merah',
-      description: 'Tomat cherry segar dari highland Batu, Malang. Asam manis, cocok untuk salad dan masakan.',
+      description:
+          'Tomat cherry segar dari highland Batu, Malang. Asam manis, cocok untuk salad dan masakan.',
       price: 8000,
       unit: 'kg',
       rating: 4.7,
@@ -163,7 +200,8 @@ class ProductModel {
     ProductModel(
       id: '5',
       name: 'Jagung Manis Pre-Order',
-      description: 'Pre-order jagung manis panen berikutnya. Perkiraan panen 2 minggu lagi.',
+      description:
+          'Pre-order jagung manis panen berikutnya. Perkiraan panen 2 minggu lagi.',
       price: 6000,
       unit: 'kg',
       rating: 4.5,

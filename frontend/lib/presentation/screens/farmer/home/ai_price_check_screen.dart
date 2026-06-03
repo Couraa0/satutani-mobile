@@ -53,7 +53,7 @@ class _AiPriceCheckScreenState extends State<AiPriceCheckScreen> with SingleTick
           SliverAppBar(
             pinned: true,
             expandedHeight: 160,
-            backgroundColor: AppColors.info,
+            backgroundColor: AppColors.primary,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
               onPressed: () => Navigator.pop(context),
@@ -64,7 +64,7 @@ class _AiPriceCheckScreenState extends State<AiPriceCheckScreen> with SingleTick
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFF1565C0), Color(0xFF0D47A1)],
+                    colors: [Color(0xFF005C25), Color(0xFF00441b)],
                   ),
                 ),
                 child: SafeArea(
@@ -137,7 +137,7 @@ class _AiPriceCheckScreenState extends State<AiPriceCheckScreen> with SingleTick
                       decoration: InputDecoration(
                         hintText: 'Cari komoditas...',
                         hintStyle: TextStyle(color: AppColors.textSecondary.withValues(alpha: 0.6), fontSize: 14),
-                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.info, size: 22),
+                        prefixIcon: const Icon(Icons.search_rounded, color: AppColors.primary, size: 22),
                         suffixIcon: _searchQuery.isNotEmpty
                             ? IconButton(
                                 icon: const Icon(Icons.close_rounded, size: 18),
@@ -171,13 +171,13 @@ class _AiPriceCheckScreenState extends State<AiPriceCheckScreen> with SingleTick
                           duration: const Duration(milliseconds: 250),
                           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                           decoration: BoxDecoration(
-                            color: selected ? AppColors.info : AppColors.surface,
+                            color: selected ? AppColors.primary : AppColors.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: selected ? AppColors.info : AppColors.border,
+                              color: selected ? AppColors.primary : AppColors.border,
                             ),
                             boxShadow: selected
-                                ? [BoxShadow(color: AppColors.info.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))]
+                                ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))]
                                 : null,
                           ),
                           child: Text(
@@ -200,20 +200,20 @@ class _AiPriceCheckScreenState extends State<AiPriceCheckScreen> with SingleTick
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
-                      colors: [AppColors.info.withValues(alpha: 0.08), AppColors.primary.withValues(alpha: 0.05)],
+                      colors: [AppColors.primary.withValues(alpha: 0.08), AppColors.primary.withValues(alpha: 0.05)],
                     ),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.info.withValues(alpha: 0.15)),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
                   ),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(6),
                         decoration: BoxDecoration(
-                          color: AppColors.info.withValues(alpha: 0.15),
+                          color: AppColors.primary.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: const Icon(Icons.auto_awesome_rounded, color: AppColors.info, size: 16),
+                        child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 16),
                       ),
                       const SizedBox(width: 10),
                       Expanded(
@@ -325,12 +325,12 @@ class _PriceCard extends StatelessWidget {
           color: AppColors.surface,
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isExpanded ? AppColors.info.withValues(alpha: 0.3) : Colors.transparent,
+            color: isExpanded ? AppColors.primary.withValues(alpha: 0.3) : Colors.transparent,
           ),
           boxShadow: [
             BoxShadow(
               color: isExpanded
-                  ? AppColors.info.withValues(alpha: 0.1)
+                  ? AppColors.primary.withValues(alpha: 0.1)
                   : Colors.black.withValues(alpha: 0.04),
               blurRadius: isExpanded ? 16 : 8,
               offset: const Offset(0, 2),
@@ -435,20 +435,20 @@ class _PriceCard extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [AppColors.info.withValues(alpha: 0.06), AppColors.info.withValues(alpha: 0.02)],
+                colors: [AppColors.primary.withValues(alpha: 0.06), AppColors.primary.withValues(alpha: 0.02)],
               ),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.info.withValues(alpha: 0.12)),
+              border: Border.all(color: AppColors.primary.withValues(alpha: 0.12)),
             ),
             child: Row(
               children: [
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: AppColors.info.withValues(alpha: 0.12),
+                    color: AppColors.primary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.auto_awesome_rounded, color: AppColors.info, size: 18),
+                  child: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary, size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -462,7 +462,7 @@ class _PriceCard extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         'Rp ${_formatPrice(price.aiPredictedPrice)}/${price.unit}',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.info),
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.primary),
                       ),
                     ],
                   ),

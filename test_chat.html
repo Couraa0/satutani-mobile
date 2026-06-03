@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test AI SatuTani (Tanpa Flutter)</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 40px auto; padding: 20px; background: #f4f4f9; }
+        .chat-box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .message { margin-bottom: 15px; padding: 10px; border-radius: 5px; }
+        .user { background: #e3f2fd; text-align: right; }
+        .bot { background: #f1f8e9; text-align: left; white-space: pre-wrap; }
+        input[type="text"] { width: 75%; padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        button { width: 20%; padding: 10px; background: #4caf50; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        button:hover { background: #45a049; }
+        #status { font-size: 0.9em; color: gray; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="chat-box">
+        <h2 style="margin-top: 0;">SatuTani AI Tester 🤖</h2>
+        <div id="status">Koneksi ke port 8000...</div>
+        <div id="chat-history" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; margin-bottom: 10px; border-radius: 4px;">
+            <div class="message bot">Halo! Saya AI SatuTani. Ada yang bisa dibantu tentang pertanian di Lembang?</div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="userInput" placeholder="Tanya sesuatu... (contoh: cuaca lembang)" onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()" id="sendBtn">Kirim</button>
+        </div>
+    </div>
+
+    <script>
+        // Cek status AI saat halaman dibuka
+        fetch('http://localhost:8000/health')
+            .then(res => res.json())
+            .then(data => { document.getElementById('status').innerHTML = '✅ AI Service Online!'; document.getElementById('status').style.color = 'green'; })
+            .catch(err => { document.getElementById('status').innerHTML = '❌ AI Service Offline! Pastikan Python berjalan di port 8000.'; document.getElementById('status').style.color = 'red'; });
+
+        async function sendMessage() {
+            const input = document.getElementById('userInput');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const chatHistory = document.getElementById('chat-history');
+            const sendBtn = document.getElementById('sendBtn');
+            
+            // Tambah pesan user ke UI
+            chatHistory.innerHTML += `<div class="message user">${message}</div>`;
+            input.value = '';
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+            
+            // Loading state
+            sendBtn.disabled = true;
+            sendBtn.innerHTML = 'Mikir...';
+
+            try {
+                // Tembak langsung ke Python AI Service
+                const response = await fetch('http://localhost:8000/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: message, wilayah: "Lembang" })
+                });
+                
+                const data = await response.json();
+                
+                // Tambah pesan bot ke UI
+                chatHistory.innerHTML += `<div class="message bot">${data.reply}</div>`;
+            } catch (error) {
+                chatHistory.innerHTML += `<div class="message bot" style="color:red;">Error: Gagal menghubungi AI. Pastikan Terminal 2 nyala.</div>`;
+            }
+
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = 'Kirim';
+            chatHistory.scrollTop = chatHistory.scrollHeight;
+        }
+    </script>
+</body>
+</html>

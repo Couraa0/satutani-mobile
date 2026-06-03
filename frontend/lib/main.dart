@@ -5,6 +5,7 @@ import 'core/constants/supabase_config.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/consumer_navigation.dart';
 import 'presentation/farmer_navigation.dart';
+import 'presentation/admin_navigation.dart';
 import 'presentation/screens/splash/splash_screen.dart';
 import 'presentation/screens/onboarding/onboarding_screen.dart';
 import 'presentation/screens/auth/role_select_screen.dart';
@@ -26,10 +27,12 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
 
-  await Supabase.initialize(
-    url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
-  );
+  if (SupabaseConfig.url.isNotEmpty) {
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      anonKey: SupabaseConfig.anonKey,
+    );
+  }
 
   runApp(
     DevicePreview(
@@ -69,6 +72,8 @@ class SatuTaniApp extends StatelessWidget {
         '/chat':        (_) => const ChatScreen(),
         // Farmer
         '/farmer-home': (_) => const FarmerNavigation(),
+        // Admin
+        '/admin-home':  (_) => const AdminNavigation(),
       },
       onGenerateRoute: (settings) {
         if (settings.name == '/product-detail') {

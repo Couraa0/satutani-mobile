@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/constants/colors.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -24,11 +25,47 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _login() async {
+    final email = _emailCtrl.text.trim();
+    final password = _passwordCtrl.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Email dan kata sandi wajib diisi'),
+          backgroundColor: Color(0xFFD32F2F),
+        ),
+      );
+      return;
+    }
+
     setState(() => _loading = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) {
-      setState(() => _loading = false);
-      Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false);
+    try {
+      await Supabase.instance.client.auth.signInWithPassword(
+        email: email,
+        password: password,
+      );
+      if (!mounted) return;
+      final role = await AuthService.resolveRole();
+      debugPrint('[LoginScreen] resolved role: "$role"');
+      if (!mounted) return;
+      final route = role == 'farmer'
+          ? '/farmer-home'
+          : role == 'admin'
+              ? '/admin-home'
+              : '/';
+      debugPrint('[LoginScreen] navigating to: $route');
+      Navigator.pushNamedAndRemoveUntil(context, route, (_) => false);
+    } on AuthException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(e.message),
+            backgroundColor: const Color(0xFFD32F2F),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 
@@ -188,49 +225,6 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                   ),
-                ),
-                const SizedBox(height: 28),
-                // Divider
-                Row(
-                  children: [
-                    Expanded(
-                        child:
-                            Divider(color: Colors.grey.shade200, thickness: 1)),
-                    const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 14),
-                      child: Text(
-                        'atau masuk dengan',
-                        style: TextStyle(
-                            color: AppColors.textSecondary, fontSize: 12),
-                      ),
-                    ),
-                    Expanded(
-                        child:
-                            Divider(color: Colors.grey.shade200, thickness: 1)),
-                  ],
-                ),
-                const SizedBox(height: 20),
-                // Social login buttons
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _socialBtn(
-                        label: 'G',
-                        color: const Color(0xFFDB4437),
-                        onTap: _signInWithGoogle),
-                    const SizedBox(width: 16),
-                    _socialBtn(
-                        icon: Icons.facebook_rounded,
-                        color: const Color(0xFF1877F2),
-                        onTap: () {}),
-                    const SizedBox(width: 16),
-                    _socialBtn(
-                        label: 'f',
-                        icon: null,
-                        svgLabel: '𝕏',
-                        color: Colors.black,
-                        onTap: () {}),
-                  ],
                 ),
                 const SizedBox(height: 32),
                 // Register link

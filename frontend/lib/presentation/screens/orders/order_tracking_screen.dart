@@ -1,20 +1,65 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/colors.dart';
-import '../../../data/mock/orders_mock.dart';
+import '../../../data/models/consumer_order.dart';
+import '../../../data/mock/orders_mock.dart' show OrderStatus, OrderStatusExt;
 
 class OrderTrackingScreen extends StatelessWidget {
-  const OrderTrackingScreen({super.key});
+  final ConsumerOrder? order;
+  const OrderTrackingScreen({super.key, this.order});
+
+  String _fmt(double v) => v
+      .toStringAsFixed(0)
+      .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+
+  String _qty(double v) =>
+      v == v.roundToDouble() ? v.toStringAsFixed(0) : v.toString();
+
+  /// 0 = dikonfirmasi, 1 = dipanen/disiapkan, 2 = dikirim, 3 = diterima.
+  int get _activeStep {
+    switch (order?.status) {
+      case OrderStatus.dipanen:
+        return 1;
+      case OrderStatus.dikirim:
+        return 2;
+      case OrderStatus.selesai:
+        return 3;
+      case OrderStatus.dikonfirmasi:
+      default:
+        return 0;
+    }
+  }
+
+  String get _statusTitle {
+    switch (order?.status) {
+      case OrderStatus.menunggu:
+        return 'Menunggu Konfirmasi';
+      case OrderStatus.dipanen:
+        return 'Sedang Disiapkan';
+      case OrderStatus.dikirim:
+        return 'Dalam Pengiriman';
+      case OrderStatus.selesai:
+        return 'Pesanan Selesai';
+      case OrderStatus.dibatalkan:
+        return 'Pesanan Dibatalkan';
+      case OrderStatus.dikonfirmasi:
+      default:
+        return 'Pesanan Dikonfirmasi';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    // using mock data for demo
-    final order = mockOrders.first;
+    final farmerName = order?.farmerName ?? 'Petani';
 
     return Scaffold(
       backgroundColor: AppColors.background,
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('Lacak Pesanan', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 16)),
+        title: const Text('Lacak Pesanan',
+            style: TextStyle(
+                color: Colors.black87,
+                fontWeight: FontWeight.bold,
+                fontSize: 16)),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: Colors.black87),
@@ -34,9 +79,9 @@ class OrderTrackingScreen extends StatelessWidget {
             left: 0,
             right: 0,
             height: MediaQuery.of(context).size.height * 0.45,
-            child: _buildMapBackground(context, order),
+            child: _buildMapBackground(context, farmerName),
           ),
-          
+
           // Foreground Sliding Panel-like UI
           Positioned(
             top: MediaQuery.of(context).size.height * 0.38,
@@ -45,14 +90,18 @@ class OrderTrackingScreen extends StatelessWidget {
             bottom: 0,
             child: Container(
               decoration: BoxDecoration(
-                color: AppColors.background,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 20, offset: const Offset(0, -5)),
-                ]
-              ),
+                  color: AppColors.background,
+                  borderRadius:
+                      const BorderRadius.vertical(top: Radius.circular(32)),
+                  boxShadow: [
+                    BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.08),
+                        blurRadius: 20,
+                        offset: const Offset(0, -5)),
+                  ]),
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(32)),
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.only(top: 12, bottom: 24),
                   child: Column(
@@ -63,18 +112,24 @@ class OrderTrackingScreen extends StatelessWidget {
                         width: 48,
                         height: 5,
                         margin: const EdgeInsets.only(bottom: 24),
-                        decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(10)),
+                        decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(10)),
                       ),
-                      
+
                       Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 20),
                         child: Column(
                           children: [
-                            _buildTrackingStatusCard(context, order),
-                            const SizedBox(height: 24),
-                            _buildColdChainCard(),
-                            const SizedBox(height: 24),
-                            _buildAdditionalItemsSection(order),
+                            _buildTrackingStatusCard(context),
+                            if (order != null) ...[
+                              const SizedBox(height: 24),
+                              _buildOrderDetailCard(),
+                            ],
+                            if (order?.deliveryMethod == 'cold_chain') ...[
+                              const SizedBox(height: 24),
+                              _buildColdChainCard(),
+                            ],
                           ],
                         ),
                       ),
@@ -91,9 +146,9 @@ class OrderTrackingScreen extends StatelessWidget {
 
   // === Map Background Components ===
 
-  Widget _buildMapBackground(BuildContext context, OrderModel order) {
+  Widget _buildMapBackground(BuildContext context, String farmerName) {
     return Container(
-      decoration: const BoxDecoration(color: Color(0xFFE5EAD2)), 
+      decoration: const BoxDecoration(color: Color(0xFFE5EAD2)),
       child: Stack(
         children: [
           Positioned.fill(
@@ -114,12 +169,16 @@ class OrderTrackingScreen extends StatelessWidget {
           Positioned(
             top: MediaQuery.of(context).size.height * 0.10,
             left: 40,
-            child: SafeArea(child: _buildMapMarker(Icons.storefront_rounded, label: order.farmerName)),
+            child: SafeArea(
+                child: _buildMapMarker(Icons.storefront_rounded,
+                    label: farmerName)),
           ),
           Positioned(
             top: MediaQuery.of(context).size.height * 0.18,
             right: 40,
-            child: SafeArea(child: _buildMapMarker(Icons.person_rounded, isPrimary: true, label: "Lokasi Anda")),
+            child: SafeArea(
+                child: _buildMapMarker(Icons.person_rounded,
+                    isPrimary: true, label: "Lokasi Anda")),
           ),
         ],
       ),
@@ -133,12 +192,22 @@ class OrderTrackingScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             margin: const EdgeInsets.only(bottom: 6),
+            constraints: const BoxConstraints(maxWidth: 140),
             decoration: BoxDecoration(
               color: Colors.white,
               borderRadius: BorderRadius.circular(12),
-              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)],
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1), blurRadius: 10)
+              ],
             ),
-            child: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+            child: Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary)),
           ),
         Container(
           width: 44,
@@ -146,10 +215,17 @@ class OrderTrackingScreen extends StatelessWidget {
           decoration: BoxDecoration(
             color: isPrimary ? Colors.white : Colors.black87,
             shape: BoxShape.circle,
-            border: Border.all(color: isPrimary ? AppColors.primary : Colors.white, width: 3),
-            boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8, offset: const Offset(0, 4))],
+            border: Border.all(
+                color: isPrimary ? AppColors.primary : Colors.white, width: 3),
+            boxShadow: [
+              BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4))
+            ],
           ),
-          child: Icon(icon, color: isPrimary ? AppColors.primary : Colors.white, size: 22),
+          child: Icon(icon,
+              color: isPrimary ? AppColors.primary : Colors.white, size: 22),
         ),
       ],
     );
@@ -157,16 +233,26 @@ class OrderTrackingScreen extends StatelessWidget {
 
   // === Front Panel Cards ===
 
-  Widget _buildTrackingStatusCard(BuildContext context, OrderModel order) {
+  Widget _buildTrackingStatusCard(BuildContext context) {
+    final subtitle = order != null
+        ? '#${order!.id}'
+        : 'Tiba antara 09:12 - 09:43';
+    final isCancelled = order?.status == OrderStatus.dibatalkan;
+
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 20, offset: const Offset(0, 8)),
-          BoxShadow(color: AppColors.primary.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
-        ]
-      ),
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 20,
+                offset: const Offset(0, 8)),
+            BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4)),
+          ]),
       child: Column(
         children: [
           Padding(
@@ -174,40 +260,52 @@ class OrderTrackingScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Pesanan Diproses', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                Text(_statusTitle,
+                    style: const TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.textPrimary)),
                 const SizedBox(height: 6),
-                Text('Tiba antara 09:12 - 09:43', style: TextStyle(fontSize: 14, color: Colors.grey[600], fontWeight: FontWeight.w500)),
-                const SizedBox(height: 28),
-                _buildHorizontalStepper(),
-                const SizedBox(height: 28),
-                const Divider(height: 1, color: Color(0xFFF0F0F0)),
-                const SizedBox(height: 16),
-                Center(
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text('Tampilkan detail pesanan', style: TextStyle(fontSize: 13, color: Colors.grey[700], fontWeight: FontWeight.w600)),
-                      const SizedBox(width: 4),
-                      Icon(Icons.keyboard_arrow_down_rounded, size: 18, color: Colors.grey[700]),
-                    ],
-                  ),
-                )
+                Text(subtitle,
+                    style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500)),
+                if (!isCancelled) ...[
+                  const SizedBox(height: 28),
+                  _buildHorizontalStepper(),
+                ],
               ],
             ),
           ),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.symmetric(vertical: 16),
-            decoration: const BoxDecoration(
-              color: AppColors.primary,
-              borderRadius: BorderRadius.only(bottomLeft: Radius.circular(24), bottomRight: Radius.circular(24))
-            ),
-            child: const Row(
+            decoration: BoxDecoration(
+                color: isCancelled ? AppColors.danger : AppColors.primary,
+                borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24))),
+            child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.access_time_rounded, color: Colors.white, size: 20),
-                SizedBox(width: 8),
-                Text('8 menit lagi pesanan tiba', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                Icon(
+                    isCancelled
+                        ? Icons.cancel_outlined
+                        : Icons.access_time_rounded,
+                    color: Colors.white,
+                    size: 20),
+                const SizedBox(width: 8),
+                Text(
+                    order != null
+                        ? (isCancelled
+                            ? 'Pesanan dibatalkan'
+                            : 'Status: ${order!.status.label}')
+                        : '8 menit lagi pesanan tiba',
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13)),
               ],
             ),
           )
@@ -217,15 +315,16 @@ class OrderTrackingScreen extends StatelessWidget {
   }
 
   Widget _buildHorizontalStepper() {
+    final active = _activeStep;
     return Row(
       children: [
-        _buildStepIcon(Icons.storefront_rounded, true),
-        _buildConnector(true),
-        _buildStepIcon(Icons.shopping_basket_rounded, true),
-        _buildConnector(false),
-        _buildStepIcon(Icons.local_shipping_rounded, false),
-        _buildConnector(false),
-        _buildStepIcon(Icons.home_rounded, false),
+        _buildStepIcon(Icons.storefront_rounded, active >= 0),
+        _buildConnector(active >= 1),
+        _buildStepIcon(Icons.shopping_basket_rounded, active >= 1),
+        _buildConnector(active >= 2),
+        _buildStepIcon(Icons.local_shipping_rounded, active >= 2),
+        _buildConnector(active >= 3),
+        _buildStepIcon(Icons.home_rounded, active >= 3),
       ],
     );
   }
@@ -238,12 +337,20 @@ class OrderTrackingScreen extends StatelessWidget {
         color: isActive ? AppColors.primary : Colors.white,
         shape: BoxShape.circle,
         border: Border.all(
-          color: isActive ? AppColors.primary : const Color(0xFFE5E7EB), 
-          width: isActive ? 0 : 2
-        ),
-        boxShadow: isActive ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 3))] : null,
+            color: isActive ? AppColors.primary : const Color(0xFFE5E7EB),
+            width: isActive ? 0 : 2),
+        boxShadow: isActive
+            ? [
+                BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3))
+              ]
+            : null,
       ),
-      child: Icon(icon, size: 20, color: isActive ? Colors.white : const Color(0xFF9CA3AF)),
+      child: Icon(icon,
+          size: 20,
+          color: isActive ? Colors.white : const Color(0xFF9CA3AF)),
     );
   }
 
@@ -256,91 +363,105 @@ class OrderTrackingScreen extends StatelessWidget {
     );
   }
 
-  // === Additional Content Items ===
+  // === Order Detail (real data) ===
 
-  Widget _buildAdditionalItemsSection(OrderModel order) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Beli lagi dari toko ini', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                SizedBox(height: 4),
-                Text('Tanpa minimum pesanan.', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-              ],
-            ),
-            Icon(Icons.arrow_forward_rounded, color: Colors.grey[400], size: 20),
-          ],
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          height: 148, 
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: 4,
-            separatorBuilder: (context, index) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final items = [
-                {'name': 'Sayur Pakcoy', 'price': 'Rp 14.000', 'rating': '4.8'},
-                {'name': 'Tomat Ceri', 'price': 'Rp 22.000', 'rating': '4.9'},
-                {'name': 'Cabai Merah', 'price': 'Rp 8.000', 'rating': '4.7'},
-                {'name': 'Wortel Manis', 'price': 'Rp 12.000', 'rating': '4.6'},
-              ];
-              final item = items[index];
-              return Container(
-                width: 120,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: const Color(0xFFF3F4F6)),
-                  boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 4, offset: const Offset(0, 2))],
+  Widget _buildOrderDetailCard() {
+    final o = order!;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 12,
+              offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Detail Pesanan',
+              style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: SizedBox(
+                  width: 56,
+                  height: 56,
+                  child: o.productImageUrl.isNotEmpty
+                      ? Image.network(o.productImageUrl,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _imgFallback())
+                      : _imgFallback(),
                 ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      height: 70,
-                      decoration: const BoxDecoration(
-                        color: AppColors.primaryLight,
-                        borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
-                      ),
-                      child: const Center(
-                        child: Icon(Icons.eco_rounded, color: AppColors.primary, size: 32),
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.all(10.0),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.star_rounded, color: Colors.amber, size: 12),
-                                const SizedBox(width: 4),
-                                Text(item['rating']!, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.black87)),
-                              ],
-                            ),
-                            Text(item['name']!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
-                            Text(item['price']!, style: const TextStyle(fontSize: 11, color: AppColors.primary, fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
-                    )
+                    Text(o.productName,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 14)),
+                    const SizedBox(height: 4),
+                    Text(
+                        '${_qty(o.quantity)} ${o.unit} × Rp ${_fmt(o.pricePerUnit)}',
+                        style: const TextStyle(
+                            fontSize: 12, color: AppColors.textSecondary)),
                   ],
                 ),
-              );
-            },
+              ),
+            ],
           ),
-        )
+          const Divider(height: 28, color: Color(0xFFF0F0F0)),
+          _priceRow('Subtotal', o.subtotal, _fmt),
+          const SizedBox(height: 8),
+          _priceRow('Ongkir', o.shippingCost, _fmt),
+          const Divider(height: 28, color: Color(0xFFF0F0F0)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Total',
+                  style: TextStyle(
+                      fontWeight: FontWeight.w700, fontSize: 15)),
+              Text('Rp ${_fmt(o.total)}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 16,
+                      color: AppColors.primary)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _priceRow(String label, double value, String Function(double) fmt) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13, color: AppColors.textSecondary)),
+        Text('Rp ${fmt(value)}',
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
       ],
     );
   }
+
+  Widget _imgFallback() => Container(
+        color: AppColors.background,
+        child: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+      );
 
   Widget _buildColdChainCard() {
     return Container(
@@ -357,15 +478,23 @@ class OrderTrackingScreen extends StatelessWidget {
             children: [
               Icon(Icons.ac_unit_rounded, color: AppColors.info, size: 18),
               SizedBox(width: 8),
-              Text('Monitor Suhu Cold-Chain', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.info, fontSize: 14)),
+              Text('Monitor Suhu Cold-Chain',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.info,
+                      fontSize: 14)),
             ],
           ),
           const SizedBox(height: 16),
           Row(
             children: [
-              Expanded(child: _sensorCard('🌡️', 'Suhu Penyimpanan', '4°C', AppColors.info)),
+              Expanded(
+                  child: _sensorCard(
+                      '🌡️', 'Suhu Penyimpanan', '4°C', AppColors.info)),
               const SizedBox(width: 12),
-              Expanded(child: _sensorCard('💧', 'Kelembapan', '85%', AppColors.primary)),
+              Expanded(
+                  child: _sensorCard(
+                      '💧', 'Kelembapan', '85%', AppColors.primary)),
             ],
           ),
         ],
@@ -377,17 +506,28 @@ class OrderTrackingScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(14),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withValues(alpha: 0.1)),
-        boxShadow: [BoxShadow(color: color.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+              color: color.withValues(alpha: 0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2))
+        ],
       ),
       child: Column(
         children: [
           Text(emoji, style: const TextStyle(fontSize: 20)),
           const SizedBox(height: 6),
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 16, fontWeight: FontWeight.bold, color: color)),
           const SizedBox(height: 2),
-          Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary), textAlign: TextAlign.center),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 10, color: AppColors.textSecondary),
+              textAlign: TextAlign.center),
         ],
       ),
     );
@@ -402,11 +542,13 @@ class _GridPainter extends CustomPainter {
       ..color = Colors.white
       ..strokeWidth = 12
       ..style = PaintingStyle.stroke;
-      
-    // Draw some typical map lines
-    canvas.drawLine(Offset(0, size.height * 0.3), Offset(size.width, size.height * 0.4), paint);
-    canvas.drawLine(Offset(size.width * 0.3, 0), Offset(size.width * 0.5, size.height), paint);
-    canvas.drawLine(Offset(0, size.height * 0.7), Offset(size.width, size.height * 0.6), paint);
+
+    canvas.drawLine(Offset(0, size.height * 0.3),
+        Offset(size.width, size.height * 0.4), paint);
+    canvas.drawLine(Offset(size.width * 0.3, 0),
+        Offset(size.width * 0.5, size.height), paint);
+    canvas.drawLine(Offset(0, size.height * 0.7),
+        Offset(size.width, size.height * 0.6), paint);
   }
 
   @override
@@ -424,7 +566,8 @@ class _RoutePainter extends CustomPainter {
 
     final path = Path();
     path.moveTo(0, size.height * 0.2);
-    path.quadraticBezierTo(size.width * 0.4, size.height * 0.8, size.width, size.height * 0.6);
+    path.quadraticBezierTo(
+        size.width * 0.4, size.height * 0.8, size.width, size.height * 0.6);
 
     canvas.drawPath(path, paint);
   }

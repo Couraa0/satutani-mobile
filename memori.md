@@ -3,9 +3,10 @@
 > File ini menyimpan ringkasan & catatan yang akan **terus di-update** seiring berjalannya project.
 > Setiap kali ada perubahan struktur, keputusan teknis, atau task selesai — update bagian terkait di sini.
 
-**Last updated:** 2026-05-28 (backend setup)
+**Last updated:** 2026-05-30 (auth flow lengkap — register/login email+password, Google OAuth, set/ubah password)
 **Live frontend:** https://satutani-mobile.vercel.app/
 **Repo:** https://github.com/Couraa0/satutani-mobile
+**Supabase project:** `SatuTani_Mobile` (organization: Muhammad Rafly, plan: Free)
 
 ---
 
@@ -22,8 +23,10 @@
 ```
 satutani-mobile/
 ├── .github/        ← OFF-LIMITS
+├── .vscode/        ← Editor settings lokal
 ├── frontend/       ← Flutter app (Android/iOS/Web)
-├── backend/        ← Kosong (belum ada implementasi)
+├── backend/        ← Supabase setup (config, migrations, seed)
+├── memori.md       ← File ini
 └── README.md
 ```
 
@@ -40,7 +43,7 @@ satutani-mobile/
 | Routing (alt) | `go_router` | `^13.2.0` | ⚠️ Terpasang tapi belum dipakai |
 | **Backend** | `supabase_flutter` | `^2.8.4` | ✅ Terpasang & init |
 | HTTP | `dio` | `^5.4.1` | ⚠️ Belum dipakai (data masih mock) |
-| Local Storage | `shared_preferences` | `^2.2.3` | ⚠️ Belum dipakai |
+| Local Storage | `shared_preferences` | `^2.2.3` | ✅ Dipakai untuk `pending_oauth_role` saat OAuth signup |
 | UI Fonts | `google_fonts` (Plus Jakarta Sans) | `^6.1.0` | ✅ |
 | Chart | `fl_chart` | `^0.69.0` | ✅ |
 | Image | `cached_network_image` | `^3.3.1` | ✅ |
@@ -52,7 +55,8 @@ satutani-mobile/
 lib/
 ├── main.dart                       ← Entry point, named routes
 ├── core/
-│   ├── constants/                  ← colors, strings, api_endpoints
+│   ├── constants/                  ← colors, strings, api_endpoints, supabase_config
+│   ├── services/                   ← supabase_service, auth_service, user_service
 │   ├── theme/app_theme.dart        ← MaterialApp theme (Plus Jakarta Sans, primary #2D7D46)
 │   └── utils/                      ← currency_formatter, date_formatter
 ├── data/
@@ -107,12 +111,15 @@ lib/
 ```
 backend/
 ├── supabase/
-│   ├── config.toml                          ← Supabase CLI config (auth, Google OAuth, ports)
+│   ├── config.toml                                       ← Supabase CLI config (auth, Google OAuth, ports)
 │   ├── migrations/
-│   │   └── 20260528000000_initial_schema.sql ← Skema lengkap + RLS
-│   └── seed.sql                             ← Data awal (market events)
-└── .env.example                             ← Template env vars
+│   │   ├── 20260528000000_initial_schema.sql             ← Skema lengkap + RLS
+│   │   └── 20260529000000_fix_handle_new_user_role.sql   ← Fix trigger baca role dari signup metadata
+│   └── seed.sql                                          ← Data awal (market events)
+└── .env.example                                          ← Template env vars
 ```
+
+**⚠️ Apply via SQL Editor**, bukan Supabase CLI. Folder `migrations/` adalah dokumentasi/reference. Edit schema = jalankan SQL manual di Dashboard + commit file migration baru biar history konsisten.
 
 ### Tabel database
 | Tabel | Keterangan |
@@ -142,10 +149,62 @@ backend/
 
 ### Setup Supabase (langkah untuk developer baru)
 1. Buat project di https://supabase.com/dashboard
-2. Jalankan migration: Dashboard → SQL Editor → paste isi `migrations/20260528000000_initial_schema.sql`
+2. Jalankan migration: Dashboard → SQL Editor → paste isi **setiap file** di `migrations/` **berurutan**
 3. Salin URL & anon key dari Project Settings → API
 4. Tambahkan ke Vercel env vars: `SUPABASE_URL`, `SUPABASE_ANON_KEY`
-5. *(Opsional)* Untuk lokal: install Supabase CLI → `supabase start`
+5. Untuk dev lokal: buat `frontend/.env.json` dengan key yang sama, jalankan `flutter run -d chrome --dart-define-from-file=.env.json --web-port=3000`
+6. Supabase Dashboard → Authentication → URL Configuration → tambah `http://localhost:3000` di **Site URL** & **Redirect URLs** supaya link konfirmasi email dari dev bisa kembali ke localhost
+7. *(Opsional dev)* Authentication → Providers → Email → matikan "Confirm email" supaya testing tidak perlu konfirmasi via inbox
+
+---
+
+## 🔐 Auth Flow (Status)
+
+| Flow | Status | Catatan |
+|---|---|---|
+| Register email + password | ✅ | Role dikirim via `signUp(data: {'role': ..., 'full_name': ...})`. Trigger `handle_new_user` baca dari metadata. |
+| Login email + password | ✅ | `signInWithPassword` lalu `AuthService.resolveRole()` query DB → routing per role |
+| Google OAuth signup | ✅ | `signInWithOAuth` + `pending_oauth_role` di SharedPreferences (set saat pilih role sebelum redirect) |
+| Set/Ubah password (untuk user OAuth) | ✅ | Bottom sheet di Profile → `auth.updateUser(UserAttributes(password: ...))`. User OAuth bisa lanjut login pakai email+password setelahnya. |
+| Email confirmation | ✅ | Aktif default Supabase. Testing manual: `UPDATE auth.users SET email_confirmed_at = NOW() WHERE email = '...';` |
+| Logout | ✅ | Dialog konfirmasi → `auth.signOut()` → redirect ke `/splash` |
+| Forgot password | ⏳ | Route ada (`/forgot-password`) tapi belum implementasi |
+| Edit profile | ⏳ | Tombol ada tapi onPressed kosong; service `UserService.updateProfile()` siap pakai |
+
+### File auth Flutter
+- [auth_service.dart](frontend/lib/core/services/auth_service.dart) — `signInWithGoogle`, `resolveRole`, `signOut`, `currentUser`, `isLoggedIn`
+- [user_service.dart](frontend/lib/core/services/user_service.dart) — `getMyProfile`, `updateProfile`
+- [supabase_service.dart](frontend/lib/core/services/supabase_service.dart) — `auth` & `db` shortcut
+- [register_screen.dart](frontend/lib/presentation/screens/auth/register_screen.dart) — manual + Google
+- [login_screen.dart](frontend/lib/presentation/screens/auth/login_screen.dart) — manual + Google + debug print
+- [profile_screen.dart](frontend/lib/presentation/screens/profile/profile_screen.dart) — load profile real, set/ubah password sheet
+- [splash_screen.dart](frontend/lib/presentation/screens/splash/splash_screen.dart) — auto-route berdasarkan session + role
+
+---
+
+## ⚠️ Pitfall Penting (jangan lupa)
+
+### 1. SECURITY DEFINER function di Supabase
+Function trigger di `auth.users` (mis. [handle_new_user](backend/supabase/migrations/20260529000000_fix_handle_new_user_role.sql)) **wajib**:
+1. `SET search_path = public, pg_temp` di header function
+2. Schema-qualified types: `public.user_role` (BUKAN `user_role` saja)
+3. Owner `postgres` → `ALTER FUNCTION ... OWNER TO postgres`
+4. `GRANT EXECUTE ON FUNCTION ... TO supabase_auth_admin`
+5. INSERT policy fallback: `CREATE POLICY ... FOR INSERT WITH CHECK (true)`
+
+**Kenapa:** Saat dipanggil dari SQL Editor (role `postgres`), search_path mencakup `public` → semua reference type ketemu. Saat dipanggil dari Auth service (role `supabase_auth_admin`), search_path berbeda → reference `user_role` tanpa schema gagal → error `type "user_role" does not exist` → Supabase return generic **"Database error saving new user" (500)**. Bug sulit dideteksi karena manual SQL test berhasil padahal real signup gagal.
+
+### 2. NULL cast ke enum tidak throw exception
+`NULL::user_role` = NULL (BUKAN error). Kalau key tidak ada di JSON, `->>` return NULL, lalu cast ke NULL → insert NULL ke kolom `NOT NULL` → constraint violation → trigger fail. **Selalu** check `IS NOT NULL AND <> ''` sebelum cast.
+
+### 3. Test environment: localhost vs Vercel
+Flutter dev di `localhost:3000` cuma bisa diakses **browser laptop yang sama**. HP tidak bisa akses localhost. Kalau register di laptop lalu klik link konfirmasi email di HP, HP akan buka **Site URL Supabase** — kalau di-set ke Vercel, HP buka kode lama yang belum di-deploy. Selalu klarifikasi env saat debug.
+
+### 4. Debugging Auth Logs
+Saat dapat 500 dari `/auth/v1/signup`:
+1. Supabase Dashboard → **Logs & Analytics** → **Postgres** → top bar **Severity** → pilih **Error**
+2. Cari log dengan `user_name: supabase_auth_admin` — itu kasih error PostgreSQL persis dari trigger
+3. Bedakan dari **Auth Logs** (separate tab) yang kasih error dari Auth service side
 
 ---
 
@@ -163,13 +222,23 @@ backend/
 
 ## ✅ TODO / Catatan ke Depan
 
+### Sudah selesai
+- [x] Buat project di Supabase dashboard & jalankan migration SQL.
+- [x] Set env vars `SUPABASE_URL` & `SUPABASE_ANON_KEY` di Vercel dashboard.
+- [x] Implementasi auth nyata (login/register email+pw + Google OAuth + set/ubah password).
+- [x] Profile screen baca data real dari Supabase (`UserService.getMyProfile`).
+- [x] Farmer home greeting & tanggal dinamis (dari `profiles.name` & `DateTime.now`).
+- [x] Auth state persistence (Supabase Flutter handle otomatis).
+
+### Belum
 - [ ] Update [README.md:51](README.md#L51) — ganti `cd satutani_mobile` jadi `cd frontend`.
-- [ ] Buat project di Supabase dashboard & jalankan migration SQL.
-- [ ] Set env vars `SUPABASE_URL` & `SUPABASE_ANON_KEY` di Vercel dashboard.
-- [ ] Ganti data mock dengan query Supabase di setiap screen (mulai dari products & orders).
-- [ ] Implementasi auth nyata (login/register → Supabase Auth).
-- [ ] Pakai `go_router` atau hapus dari pubspec (saat ini cuma deadweight).
-- [ ] Auth state persistence (Supabase Flutter sudah handle session otomatis via `shared_preferences`).
+- [ ] Deploy ulang ke Vercel supaya HP test juga pakai kode terbaru.
+- [ ] Ganti data mock di Beranda/Pesanan/Profile dengan query Supabase (products, orders).
+- [ ] Hubungkan tombol **Edit Profile** ke `UserService.updateProfile`.
+- [ ] Implementasi flow **Forgot Password** (route `/forgot-password` sudah ada).
+- [ ] Hapus 2 baris `debugPrint('[LoginScreen] ...')` di [login_screen.dart:49,55](frontend/lib/presentation/screens/auth/login_screen.dart#L49) sebelum push ke prod.
+- [ ] Pakai `go_router` atau hapus dari pubspec (deadweight).
+- [ ] Avatar di pojok kanan atas Farmer Home ([farmer_home_screen.dart:44-45](frontend/lib/presentation/screens/farmer/home/farmer_home_screen.dart#L44-L45)) masih placeholder — hubungkan ke `avatar_url` user.
 
 ---
 
@@ -179,3 +248,4 @@ backend/
 |---|---|
 | 2026-05-28 | Initial memori — struktur project, stack, screens, deploy config. |
 | 2026-05-28 | Backend setup: Supabase dipilih, schema PostgreSQL + RLS dibuat, Flutter integration (supabase_flutter), vercel-build.sh diupdate. |
+| 2026-05-30 | Auth flow lengkap: register manual (role via metadata), login email+pw, Google OAuth (sudah ada), set/ubah password lewat Profile (bottom sheet). Fix trigger `handle_new_user` (migration 20260529): tambah `SET search_path` + schema-qualified `public.user_role` + null guard + grant ke `supabase_auth_admin`. Profile screen baca data real, farmer home greeting dinamis. Section "Auth Flow" & "Pitfall Penting" baru. |

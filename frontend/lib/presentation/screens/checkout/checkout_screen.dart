@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/strings.dart';
+import '../../../core/services/order_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/currency_formatter.dart';
+import '../../../data/cart_state.dart';
 
 class CheckoutScreen extends StatefulWidget {
   const CheckoutScreen({super.key});
@@ -13,10 +16,23 @@ class CheckoutScreen extends StatefulWidget {
 class _CheckoutScreenState extends State<CheckoutScreen> {
   String _deliveryMethod = 'cold_chain';
   String _paymentMethod = 'qris';
+  bool _isLoading = false;
 
-  final double _subtotal = 43000;
-  double get _shipping => _deliveryMethod == 'cold_chain' ? 25000 : 10000;
+  List<CartItem> get _cart => globalCart;
+
+  double get _subtotal =>
+      _cart.fold(0, (sum, item) => sum + item.product.price * item.quantity);
+  double get _shipping =>
+      _cart.isEmpty ? 0 : (_deliveryMethod == 'cold_chain' ? 25000 : 10000);
   double get _total => _subtotal + _shipping;
+
+  String get _userName {
+    final user = auth.currentUser;
+    final meta = user?.userMetadata;
+    return (meta?['name'] as String?)?.trim().isNotEmpty == true
+        ? meta!['name'] as String
+        : (user?.email ?? 'Pengguna');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -27,28 +43,49 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         foregroundColor: Colors.white,
         title: const Text(AppStrings.checkoutTitle),
       ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _buildAddressSection(),
-                  const SizedBox(height: 16),
-                  _buildProductSummary(),
-                  const SizedBox(height: 16),
-                  _buildDeliverySection(),
-                  const SizedBox(height: 16),
-                  _buildPaymentSection(),
-                  const SizedBox(height: 16),
-                  _buildPriceSummary(),
-                ],
-              ),
+      body: _cart.isEmpty
+          ? _buildEmpty()
+          : Column(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _buildAddressSection(),
+                        const SizedBox(height: 16),
+                        _buildProductSummary(),
+                        const SizedBox(height: 16),
+                        _buildDeliverySection(),
+                        const SizedBox(height: 16),
+                        _buildPaymentSection(),
+                        const SizedBox(height: 16),
+                        _buildPriceSummary(),
+                      ],
+                    ),
+                  ),
+                ),
+                _buildBottomBar(),
+              ],
             ),
-          ),
-          _buildBottomBar(),
+    );
+  }
+
+  Widget _buildEmpty() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.shopping_cart_outlined,
+              size: 72, color: AppColors.textSecondary),
+          const SizedBox(height: 16),
+          const Text('Keranjang masih kosong',
+              style: TextStyle(fontSize: 16, color: AppColors.textSecondary)),
+          const SizedBox(height: 12),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Kembali')),
         ],
       ),
     );
@@ -75,12 +112,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
           children: [
             const Icon(Icons.location_on_rounded, color: AppColors.primaryGreen, size: 20),
             const SizedBox(width: 10),
-            const Expanded(
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Andi Pratama', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  Text('Jl. Sudirman No. 45, Jakarta Pusat, DKI Jakarta 10220', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  Text(_userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  const Text('Atur alamat pengiriman di profil', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
                 ],
               ),
             ),
@@ -99,9 +136,14 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderColor)),
         child: Column(
           children: [
-            _compactItem('Beras Premium Cianjur', '2 kg', 28000),
-            const Divider(height: 12),
-            _compactItem('Bayam Organik Segar', '3 ikat', 15000),
+            for (int i = 0; i < _cart.length; i++) ...[
+              if (i > 0) const Divider(height: 12),
+              _compactItem(
+                _cart[i].product.name,
+                '${_cart[i].quantity} ${_cart[i].product.unit}',
+                _cart[i].product.price * _cart[i].quantity,
+              ),
+            ],
           ],
         ),
       ),
@@ -244,26 +286,79 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       child: SafeArea(
         top: false,
         child: ElevatedButton(
-          onPressed: () => _showPaymentSuccess(context),
-          child: Text('${AppStrings.payNow}  •  ${CurrencyFormatter.format(_total)}'),
+          onPressed: _isLoading ? null : _placeOrder,
+          child: _isLoading
+              ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Text('${AppStrings.payNow}  •  ${CurrencyFormatter.format(_total)}'),
         ),
       ),
     );
   }
 
+  /// Karena 1 baris Order di backend = 1 produk, satu checkout dikirim sebagai
+  /// beberapa order (satu per item keranjang). Ongkir dibebankan ke order pertama.
+  Future<void> _placeOrder() async {
+    if (_cart.isEmpty) return;
+    setState(() => _isLoading = true);
+
+    try {
+      for (int i = 0; i < _cart.length; i++) {
+        final item = _cart[i];
+        final productId = item.product.id.isNotEmpty ? item.product.id : null;
+        final farmerId =
+            item.product.farmerId.isNotEmpty ? item.product.farmerId : null;
+
+        await OrderService.createOrder({
+          'productId': productId,
+          'productName': item.product.name,
+          'productImageUrl':
+              item.product.imageUrls.isNotEmpty ? item.product.imageUrls.first : '',
+          'farmerName': item.product.farmerName,
+          'farmerId': farmerId,
+          'quantity': item.quantity,
+          'unit': item.product.unit,
+          'pricePerUnit': item.product.price,
+          'shippingCost': i == 0 ? _shipping : 0,
+          'deliveryMethod': _deliveryMethod,
+        });
+      }
+
+      clearCart();
+      if (mounted) _showPaymentSuccess(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Gagal membuat pesanan: $e'),
+            backgroundColor: AppColors.danger,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   void _showPaymentSuccess(BuildContext context) {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           const Icon(Icons.check_circle_rounded, color: AppColors.primaryGreen, size: 64),
           const SizedBox(height: 12),
-          const Text('Pembayaran Berhasil!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          const Text('Pesanan Berhasil!', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
           const Text('Pesanan Anda sedang diproses petani.', textAlign: TextAlign.center, style: TextStyle(color: AppColors.textSecondary)),
           const SizedBox(height: 16),
-          ElevatedButton(onPressed: () { Navigator.pop(context); Navigator.pushNamedAndRemoveUntil(context, '/', (_) => false); }, child: const Text('Kembali ke Home')),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pushNamedAndRemoveUntil(context, '/orders', (_) => false);
+            },
+            child: const Text('Lihat Pesanan'),
+          ),
         ]),
       ),
     );
