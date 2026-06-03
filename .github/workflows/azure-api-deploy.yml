@@ -36,7 +36,9 @@ jobs:
 
     - name: Zip artifact for deployment
       working-directory: backend/api
-      run: zip -r release.zip . -x "*.git*" "src/*" "test/*" "release.zip"
+      run: |
+        rm -f dist/prisma.config.js dist/prisma.config.js.map dist/prisma.config.d.ts
+        zip -r release.zip dist/ node_modules/ prisma/ package.json -x "node_modules/.cache/*"
 
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v3
