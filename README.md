@@ -78,11 +78,20 @@ cd frontend
 flutter pub get
 
 # Menjalankan di Chrome (Web) dengan port 3000
-flutter run -d chrome --dart-define-from-file=.env.json --web-port=3000
+flutter run -d chrome --dart-define-from-file=.env --web-port=3000
 
 # Menjalankan di Emulator/Android
-flutter run --dart-define-from-file=.env.json
+flutter run --dart-define-from-file=.env
 ```
+
+---
+
+## 🚀 Deployment
+
+Proyek ini telah dikonfigurasi dengan GitHub Actions untuk CI/CD:
+- **Frontend (Flutter Web)** di-deploy ke Vercel secara otomatis.
+- **Backend (NestJS API)** di-deploy ke Azure App Service secara otomatis (`azure-api-deploy.yml`).
+- **AI Server (FastAPI)** di-deploy ke Azure App Service secara otomatis (`azure-ai-deploy.yml`).
 
 ---
 

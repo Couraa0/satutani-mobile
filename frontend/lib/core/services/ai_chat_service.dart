@@ -1,9 +1,10 @@
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'auth_service.dart';
+import '../constants/api_config.dart';
 
 class AiChatService {
-  static const String _baseUrl = 'http://localhost:4000/api';
+  static const String _baseUrl = ApiConfig.baseUrl;
 
   /// Kirim pesan ke SatuTani AI agent.
   /// Hanya bisa dipanggil oleh user dengan role petani.

@@ -1,0 +1,44 @@
+name: Deploy NestJS API to Azure Web App
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/api/**'
+
+env:
+  AZURE_WEBAPP_NAME: satutani-api
+  NODE_VERSION: '22'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ env.NODE_VERSION }}
+        cache: 'npm'
+        cache-dependency-path: backend/api/package-lock.json
+
+    - name: Install dependencies & build
+      working-directory: backend/api
+      run: |
+        npm ci
+        npx prisma generate
+        npm run build
+
+    - name: Zip artifact for deployment
+      working-directory: backend/api
+      run: zip -r release.zip . -x "*.git*" "src/*" "test/*"
+
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ env.AZURE_WEBAPP_NAME }}
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_API }}
+        package: backend/api/release.zip

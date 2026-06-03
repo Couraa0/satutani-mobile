@@ -92,6 +92,10 @@ Service akan berjalan di `http://localhost:8000`.
 - Sukabumi
 
 ## Notes
-- Service melakukan startup init (~30-60 detik): scraping BMKG, build ChromaDB, load embeddings
-- Jika BMKG tidak tersedia, otomatis fallback ke data klimatologi historis
-- Model LLM: `llama-3.3-70b-versatile` via Groq Cloud
+- Service melakukan startup init (~1-3 detik) untuk memuat data knowledge base dan cuaca historis.
+- Jika API BMKG tidak tersedia, sistem akan otomatis *fallback* ke data klimatologi historis.
+- Model LLM: `llama-3.3-70b-versatile` via Groq Cloud (API Key diatur di `.env`).
+
+## ☁️ Deployment
+Aplikasi AI ini sudah dikonfigurasi menggunakan GitHub Actions untuk di-deploy ke **Microsoft Azure App Service** (Linux, Python 3.11). 
+File workflow terletak di `../../.github/workflows/azure-ai-deploy.yml`.
