@@ -69,4 +69,4 @@ Pastikan Anda sudah menginstall:
 ---
 
 ### Dikembangkan Oleh
-**Muhammad Rafly** & Tim Pengembang SatuTani 2026.
+**M Rakha Syamputra & Muhammad Rafly** & Tim Pengembang SatuTani 2026.
