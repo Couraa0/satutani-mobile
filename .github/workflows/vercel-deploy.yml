@@ -32,7 +32,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web
-        run: flutter build web --release
+        run: flutter build web --release --dart-define=API_URL=https://satutani-api-edbcfnc9g0f9ddd3.indonesiacentral-01.azurewebsites.net/api
 
       - name: Copy Vercel Configuration
         run: cp vercel.json build/web/vercel.json

@@ -8,10 +8,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.enableCors({
-    origin: [
-      'https://satutani-mobile.vercel.app',
-      'http://localhost:3000',
-    ],
+    origin: '*',
   });
 
   await app.listen(process.env.PORT ?? 4000);

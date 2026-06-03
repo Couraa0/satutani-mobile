@@ -94,11 +94,3 @@ Proyek ini telah dikonfigurasi dengan GitHub Actions untuk CI/CD:
 - **AI Server (FastAPI)** di-deploy ke Azure App Service secara otomatis (`azure-ai-deploy.yml`).
 
 ---
-
-## 📸 Tampilan Aplikasi (Preview)
-*(Tambahkan URL screenshot / GIF aplikasi di sini nantinya)*
-
----
-
-### Dikembangkan Oleh
-**M Rakha Syamputra & Muhammad Rafly** & Tim Pengembang SatuTani 2026.

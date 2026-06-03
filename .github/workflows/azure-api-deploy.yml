@@ -8,7 +8,7 @@ on:
       - 'backend/api/**'
 
 env:
-  AZURE_WEBAPP_NAME: satutani-api
+  AZURE_WEBAPP_NAME: satutani-api-edbcfnc9g0f9ddd3
   NODE_VERSION: '22'
 
 jobs:
