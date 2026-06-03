@@ -28,7 +28,7 @@ jobs:
     - name: Install dependencies & build
       working-directory: backend/api
       run: |
-        npm ci
+        npm install
         npx prisma generate
         npm run build
 
