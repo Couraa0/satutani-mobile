@@ -34,7 +34,7 @@ jobs:
 
     - name: Zip artifact for deployment
       working-directory: backend/api
-      run: zip -r release.zip . -x "*.git*" "src/*" "test/*"
+      run: zip -r release.zip . -x "*.git*" "src/*" "test/*" "node_modules/*"
 
     - name: Deploy to Azure Web App
       uses: azure/webapps-deploy@v3
