@@ -11,7 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: satutani_mobile
+        working-directory: frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
