@@ -11,9 +11,7 @@ async function bootstrap() {
     origin: '*',
   });
 
-  await app.listen(process.env.PORT ?? 4000);
+  await app.listen(process.env.PORT ?? 4000, '0.0.0.0');
   console.log(`API berjalan di port ${process.env.PORT ?? 4000}`);
 }
 bootstrap();
-
-#test
