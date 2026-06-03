@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'backend/api/**'
+      - '.github/workflows/azure-api-deploy.yml'
 
 env:
   AZURE_WEBAPP_NAME: satutani-api

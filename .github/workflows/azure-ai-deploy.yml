@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - 'backend/ai/**'
+      - '.github/workflows/azure-ai-deploy.yml'
 
 env:
   AZURE_WEBAPP_NAME: satutani-ai
