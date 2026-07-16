@@ -5,7 +5,12 @@ import { PrismaService } from '../prisma/prisma.service';
 export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(params: { category?: string; search?: string; limit?: number; offset?: number }) {
+  async findAll(params: {
+    category?: string;
+    search?: string;
+    limit?: number;
+    offset?: number;
+  }) {
     const { category, search, limit = 20, offset = 0 } = params;
 
     return this.prisma.product.findMany({
@@ -34,7 +39,9 @@ export class ProductsService {
         },
         categoryRef: true,
         reviews: {
-          include: { consumer: { select: { id: true, name: true, avatarUrl: true } } },
+          include: {
+            consumer: { select: { id: true, name: true, avatarUrl: true } },
+          },
           orderBy: { createdAt: 'desc' },
           take: 10,
         },
@@ -54,20 +61,44 @@ export class ProductsService {
   }
 
   async create(farmerId: string, dto: any) {
+    if (dto.estimatedHarvestDate) {
+      dto.estimatedHarvestDate = new Date(dto.estimatedHarvestDate);
+    }
+
     return this.prisma.product.create({
-      data: { ...dto, farmerId },
+      data: {
+        ...dto,
+        farmerId,
+      },
     });
   }
 
   async update(id: string, farmerId: string, dto: any) {
-    const product = await this.prisma.product.findFirst({ where: { id, farmerId } });
-    if (!product) throw new NotFoundException('Produk tidak ditemukan');
+    const product = await this.prisma.product.findFirst({
+      where: {
+        id,
+        farmerId,
+      },
+    });
 
-    return this.prisma.product.update({ where: { id }, data: dto });
+    if (!product) {
+      throw new NotFoundException('Produk tidak ditemukan');
+    }
+
+    if (dto.estimatedHarvestDate) {
+      dto.estimatedHarvestDate = new Date(dto.estimatedHarvestDate);
+    }
+
+    return this.prisma.product.update({
+      where: { id },
+      data: dto,
+    });
   }
 
   async remove(id: string, farmerId: string) {
-    const product = await this.prisma.product.findFirst({ where: { id, farmerId } });
+    const product = await this.prisma.product.findFirst({
+      where: { id, farmerId },
+    });
     if (!product) throw new NotFoundException('Produk tidak ditemukan');
 
     return this.prisma.product.delete({ where: { id } });
