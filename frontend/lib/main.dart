@@ -37,7 +37,7 @@ void main() async {
 
   runApp(
     DevicePreview(
-      enabled: true, // Always show the preview frame for testing
+      enabled: true,
       builder: (context) => const SatuTaniApp(),
     ),
   );
