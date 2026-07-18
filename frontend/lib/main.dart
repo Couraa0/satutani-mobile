@@ -15,6 +15,7 @@ import 'presentation/screens/auth/forgot_password_screen.dart';
 import 'presentation/screens/auth/new_password_screen.dart';
 import 'presentation/screens/auth/otp_screen.dart';
 import 'presentation/screens/auth/otp_success_screen.dart';
+import 'presentation/screens/explore/explore_screen.dart';
 import 'presentation/screens/product_detail/product_detail_screen.dart';
 import 'presentation/screens/cart/cart_screen.dart';
 import 'presentation/screens/checkout/checkout_screen.dart';
@@ -65,6 +66,7 @@ class SatuTaniApp extends StatelessWidget {
         '/otp-success':     (_) => const OtpSuccessScreen(),
         // Consumer
         '/':            (_) => const ConsumerNavigation(),
+        '/explore':     (_) => const ExploreScreen(),
         '/cart':        (_) => const CartScreen(),
         '/checkout':    (_) => const CheckoutScreen(),
         '/orders':      (_) => const OrdersScreen(),

@@ -17,10 +17,10 @@ class AppColors {
   static const info    = Color(0xFF1976D2);
 
   // Background & Surface
-  static const background = Color(0xFFF9F7F2);
+  static const background = Color(0xFFFFFFFF);
   static const surface    = Color(0xFFFFFFFF);
   static const cardBg     = Color(0xFFFFFFFF);
-  static const scaffoldBg = Color(0xFFF9F7F2);
+  static const scaffoldBg = Color(0xFFFFFFFF);
 
   // Text
   static const textPrimary   = Color(0xFF1A1A1A);
