@@ -3,6 +3,8 @@ import '../../../core/constants/colors.dart';
 import '../../../core/constants/strings.dart';
 import '../../../core/services/order_service.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/user_service.dart';
+import '../../widgets/address_sheet.dart';
 import '../../../core/utils/currency_formatter.dart';
 import '../../../data/cart_state.dart';
 
@@ -32,6 +34,21 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
     return (meta?['name'] as String?)?.trim().isNotEmpty == true
         ? meta!['name'] as String
         : (user?.email ?? 'Pengguna');
+  }
+
+  String _address = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAddress();
+  }
+
+  Future<void> _loadAddress() async {
+    final profile = await UserService.getMyProfile();
+    if (mounted) {
+      setState(() => _address = (profile?['address'] as String?) ?? '');
+    }
   }
 
   @override
@@ -117,11 +134,32 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(_userName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                  const Text('Atur alamat pengiriman di profil', style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  Text(
+                    _address.isNotEmpty
+                        ? _address
+                        : 'Atur alamat pengiriman di profil',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
                 ],
               ),
             ),
-            TextButton(onPressed: () {}, child: const Text(AppStrings.changeAddress, style: TextStyle(color: AppColors.primaryGreen))),
+            TextButton(
+              onPressed: () async {
+                final changed = await showModalBottomSheet<bool>(
+                  context: context,
+                  isScrollControlled: true,
+                  backgroundColor: Colors.transparent,
+                  builder: (ctx) => Padding(
+                    padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
+                    child: AddressSheet(current: _address),
+                  ),
+                );
+                if (changed == true) _loadAddress();
+              },
+              child: const Text(AppStrings.changeAddress, style: TextStyle(color: AppColors.primaryGreen)),
+            ),
           ],
         ),
       ),

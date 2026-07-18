@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/storage_service.dart';
 import '../../../core/services/user_service.dart';
+import '../../widgets/address_sheet.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -22,10 +28,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _loadProfile() async {
     final data = await UserService.getMyProfile();
-    if (mounted) setState(() { _profile = data; _loading = false; });
+    if (mounted) {
+      setState(() {
+        _profile = data;
+        _loading = false;
+      });
+    }
   }
 
-  String get _name => _profile?['name'] ?? AuthService.currentUser?.email ?? 'User';
+  String get _name =>
+      _profile?['name'] ?? AuthService.currentUser?.email ?? 'User';
   String get _email => AuthService.currentUser?.email ?? '';
   String get _role {
     final r = _profile?['role'] ?? 'consumer';
@@ -33,302 +45,395 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (r == 'admin') return 'Admin';
     return 'Pembeli';
   }
-  String get _location {
-    final city = _profile?['city'] ?? '';
-    final province = _profile?['province'] ?? '';
-    if (city.isEmpty && province.isEmpty) return 'Indonesia';
-    if (city.isEmpty) return province;
-    return '$city, $province';
-  }
-  String get _avatarUrl => AuthService.currentUser?.userMetadata?['avatar_url'] ?? '';
 
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-    return Scaffold(
-      backgroundColor: const Color(0xFFE8F5E9),
-      body: Stack(
-        children: [
-          // Background Radial Blob Gradient — Full Screen (Canva fluid style)
-          Positioned.fill(
-            child: Stack(
-              children: [
-                // Dasar warna
-                Container(color: const Color(0xFFE8F5E9)),
-                // Blob 1 — Kanan atas: Hijau solid kuat
-                Positioned(
-                  top: -100,
-                  right: -100,
-                  child: _blob(360, const Color(0xFF2D7D46), 0.75),
-                ),
-                // Blob 2 — Kiri tengah: Hijau tua lebih kecil
-                Positioned(
-                  top: 200,
-                  left: -120,
-                  child: _blob(300, const Color(0xFF1B5E20), 0.5),
-                ),
-                // Blob 3 — Kanan bawah: Hijau medium
-                Positioned(
-                  bottom: -80,
-                  right: -60,
-                  child: _blob(280, const Color(0xFF4CAF50), 0.45),
-                ),
-                // Blob 4 — Tengah bawah kiri: Hijau muda
-                Positioned(
-                  bottom: 100,
-                  left: 40,
-                  child: _blob(200, const Color(0xFF81C784), 0.35),
-                ),
-                // Blob 5 — Atas tengah: Sedikit overlap untuk naturalness
-                Positioned(
-                  top: 80,
-                  left: 80,
-                  child: _blob(180, const Color(0xFFA5D6A7), 0.4),
-                ),
-              ],
-            ),
-          ),
-          
-          SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 12), // Sedikit padding pengganti agar Profile tidak terlalu mepet dengan atas layar
-                  const Text('Profile', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.black87)),
-                  const SizedBox(height: 20),
+  String get _avatarUrl =>
+      (_profile?['avatar_url'] as String?)?.isNotEmpty == true
+          ? _profile!['avatar_url']
+          : (AuthService.currentUser?.userMetadata?['avatar_url'] ?? '');
 
-                  // Profile Card
-                  _buildProfileCard(context),
-                  const SizedBox(height: 32),
+  String get _address => (_profile?['address'] as String?) ?? '';
 
-                  // Menu Items (Group 1)
-                  _buildMenuItem(Icons.language_rounded, 'Bahasa'),
-                  _buildMenuItem(Icons.currency_exchange_rounded, 'Mata Uang'),
-                  _buildMenuItem(Icons.palette_outlined, 'Tampilan'),
-                  
-                  const SizedBox(height: 16),
+  int _stat(String key) => (_profile?[key] as num?)?.toInt() ?? 0;
 
-                  // Menu Items (Group 2)
-                  _buildMenuItem(Icons.security_rounded, 'Keamanan Aplikasi'),
-                  _buildMenuItem(Icons.devices_rounded, 'Kelola Perangkat'),
-                  _buildMenuItem(Icons.password_rounded, 'Ubah Kata Sandi',
-                      onTap: () => _showChangePasswordSheet(context)),
-                  
-                  const SizedBox(height: 16),
-                  
-                  // Logout Button
-                  _buildLogoutMenuItem(context),
+  // ── Aksi menu ─────────────────────────────────────────────────────────────
 
-                  const SizedBox(height: 32),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // Helper: Membuat "blob" lingkaran dengan RadialGradient, menyebar ke transparan
-  Widget _blob(double size, Color color, double opacity) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            color.withValues(alpha: opacity),
-            color.withValues(alpha: 0.0),
-          ],
-          stops: const [0.0, 1.0],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildProfileCard(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 32, horizontal: 20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
-          )
-        ],
-      ),
-      child: Column(
-        children: [
-          // Avatar
-          CircleAvatar(
-            radius: 44,
-            backgroundColor: AppColors.primaryLight,
-            backgroundImage: _avatarUrl.isNotEmpty ? NetworkImage(_avatarUrl) : null,
-            child: _avatarUrl.isEmpty
-                ? Text(
-                    _name.isNotEmpty ? _name[0].toUpperCase() : 'U',
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: AppColors.primary),
-                  )
-                : null,
-          ),
-          const SizedBox(height: 16),
-
-          // Name and Email
-          Text(_name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
-          const SizedBox(height: 4),
-          Text(_email, style: TextStyle(fontSize: 13, color: Colors.grey[600])),
-
-          const SizedBox(height: 8),
-
-          // Role and Location
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(_role, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Text('·', style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-              ),
-              Icon(Icons.location_on_outlined, size: 14, color: Colors.grey[500]),
-              const SizedBox(width: 4),
-              Text(_location, style: TextStyle(fontSize: 12, color: Colors.grey[500])),
-            ],
-          ),
-          
-          const SizedBox(height: 24),
-          
-          // Edit Profile Button (Warna khusus Color(0xFFF5A623))
-          ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.edit_rounded, size: 16, color: Colors.white),
-            label: const Text('Edit Profile', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF5A623),
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showChangePasswordSheet(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _openSheet(Widget sheet) async {
+    final changed = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => Padding(
         padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: const _ChangePasswordSheet(),
+        child: sheet,
+      ),
+    );
+    if (changed == true) _loadProfile();
+  }
+
+  void _openAbout() {
+    showAboutDialog(
+      context: context,
+      applicationName: 'SatuTani',
+      applicationVersion: '1.0.0',
+      applicationIcon: Container(
+        width: 48,
+        height: 48,
+        decoration: BoxDecoration(
+          color: AppColors.primaryLight,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: const Center(child: Text('🌱', style: TextStyle(fontSize: 26))),
+      ),
+      children: const [
+        Text(
+          'SatuTani menghubungkan petani dan pembeli secara langsung — '
+          'tanpa perantara, harga adil untuk semua.',
+          style: TextStyle(fontSize: 13, height: 1.5),
+        ),
+      ],
+    );
+  }
+
+  void _confirmLogout() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Keluar?'),
+        content: const Text('Apakah Anda yakin ingin keluar dari akun ini?'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Batal')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await AuthService.signOut();
+              if (!mounted) return;
+              Navigator.pushNamedAndRemoveUntil(
+                  context, '/splash', (_) => false);
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                minimumSize: const Size(100, 44)),
+            child: const Text('Keluar'),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildMenuItem(IconData icon, String title, {VoidCallback? onTap}) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        elevation: 0,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap ?? () {},
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
+  // ── UI ────────────────────────────────────────────────────────────────────
+
+  @override
+  Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
+    if (_loading) {
+      return const Scaffold(
+        backgroundColor: Colors.white,
+        body: Center(
+            child: CircularProgressIndicator(color: AppColors.primary)),
+      );
+    }
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: _loadProfile,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              _buildHeader(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildStatsRow()
+                        .animate()
+                        .fadeIn(duration: 350.ms)
+                        .slideY(begin: 0.15, curve: Curves.easeOut),
+                    const SizedBox(height: 24),
+                    _sectionLabel('AKUN'),
+                    _MenuTile(
+                      icon: Icons.person_outline_rounded,
+                      color: AppColors.primary,
+                      title: 'Edit Profil',
+                      subtitle: 'Nama, telepon, kota, foto profil',
+                      onTap: () => _openSheet(_EditProfileSheet(
+                          profile: _profile ?? {}, avatarUrl: _avatarUrl)),
+                    ),
+                    _MenuTile(
+                      icon: Icons.location_on_outlined,
+                      color: AppColors.secondary,
+                      title: 'Alamat Pengiriman',
+                      subtitle: _address.isEmpty
+                          ? 'Belum diatur — dipakai saat checkout'
+                          : _address,
+                      onTap: () =>
+                          _openSheet(AddressSheet(current: _address)),
+                    ),
+                    _MenuTile(
+                      icon: Icons.lock_outline_rounded,
+                      color: AppColors.info,
+                      title: 'Ubah Kata Sandi',
+                      subtitle: 'Perbarui kata sandi akun Anda',
+                      onTap: () => _openSheet(const _ChangePasswordSheet()),
+                    ),
+                    const SizedBox(height: 20),
+                    _sectionLabel('LAINNYA'),
+                    _MenuTile(
+                      icon: Icons.help_outline_rounded,
+                      color: AppColors.preOrderPurple,
+                      title: 'Pusat Bantuan',
+                      subtitle: 'Pertanyaan yang sering diajukan',
+                      onTap: () => _openSheet(const _HelpSheet()),
+                    ),
+                    _MenuTile(
+                      icon: Icons.info_outline_rounded,
+                      color: AppColors.textSecondary,
+                      title: 'Tentang Aplikasi',
+                      subtitle: 'SatuTani v1.0.0',
+                      onTap: _openAbout,
+                    ),
+                    const SizedBox(height: 20),
+                    _MenuTile(
+                      icon: Icons.logout_rounded,
+                      color: AppColors.danger,
+                      title: 'Keluar',
+                      titleColor: AppColors.danger,
+                      showChevron: false,
+                      onTap: _confirmLogout,
+                    ),
+                  ]
+                      .animate(interval: 45.ms)
+                      .fadeIn(duration: 300.ms)
+                      .slideY(begin: 0.08, curve: Curves.easeOut),
                 ),
-              ],
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
-            child: Row(
-              children: [
-                Icon(icon, size: 22, color: Colors.black87),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.black87)),
-                ),
-                const Icon(Icons.chevron_right_rounded, size: 22, color: Colors.grey),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildLogoutMenuItem(BuildContext context) {
+  Widget _buildHeader() {
     return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [AppColors.primaryDark, AppColors.primary],
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 20, 26),
+          child: Column(
+            children: [
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text('Profil Saya',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800)),
+              ),
+              const SizedBox(height: 18),
+              Stack(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: const BoxDecoration(
+                        color: Colors.white, shape: BoxShape.circle),
+                    child: CircleAvatar(
+                      radius: 44,
+                      backgroundColor: AppColors.primaryLight,
+                      backgroundImage: _avatarUrl.isNotEmpty
+                          ? CachedNetworkImageProvider(_avatarUrl)
+                          : null,
+                      child: _avatarUrl.isEmpty
+                          ? Text(
+                              _name.isNotEmpty ? _name[0].toUpperCase() : 'U',
+                              style: const TextStyle(
+                                  fontSize: 32,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.primary),
+                            )
+                          : null,
+                    ),
+                  ),
+                ],
+              ).animate().scale(
+                  duration: 350.ms,
+                  begin: const Offset(0.9, 0.9),
+                  curve: Curves.easeOutBack),
+              const SizedBox(height: 12),
+              Text(_name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white)),
+              const SizedBox(height: 3),
+              Text(_email,
+                  style:
+                      const TextStyle(fontSize: 13, color: Colors.white70)),
+              const SizedBox(height: 10),
+              Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(_role,
+                    style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white)),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStatsRow() {
+    final stats = [
+      ('$_totalOrders', 'Pesanan', Icons.receipt_long_rounded),
+      ('$_points', 'Poin', Icons.stars_rounded),
+      ('$_reviews', 'Ulasan', Icons.rate_review_rounded),
+    ];
+    return Row(
+      children: [
+        for (var i = 0; i < stats.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Column(
+                children: [
+                  Icon(stats[i].$3, color: AppColors.primary, size: 20),
+                  const SizedBox(height: 6),
+                  Text(stats[i].$1,
+                      style: const TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 2),
+                  Text(stats[i].$2,
+                      style: const TextStyle(
+                          fontSize: 11.5, color: AppColors.textSecondary)),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  int get _totalOrders => _stat('total_orders');
+  int get _points => _stat('loyalty_points');
+  int get _reviews => _stat('total_reviews');
+
+  Widget _sectionLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10, left: 4),
+      child: Text(text,
+          style: const TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.1,
+              color: AppColors.textSecondary)),
+    );
+  }
+}
+
+// ── Baris menu ────────────────────────────────────────────────────────────────
+
+class _MenuTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String? subtitle;
+  final Color? titleColor;
+  final bool showChevron;
+  final VoidCallback onTap;
+
+  const _MenuTile({
+    required this.icon,
+    required this.color,
+    required this.title,
+    this.subtitle,
+    this.titleColor,
+    this.showChevron = true,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        elevation: 0,
         child: InkWell(
           borderRadius: BorderRadius.circular(16),
-          onTap: () {
-            showDialog(
-              context: context,
-              builder: (_) => AlertDialog(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                title: const Text('Keluar?'),
-                content: const Text('Apakah Anda yakin ingin keluar dari akun ini?'),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Batal')),
-                  ElevatedButton(
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      await AuthService.signOut();
-                      if (context.mounted) Navigator.pushNamedAndRemoveUntil(context, '/splash', (_) => false);
-                    },
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-                    child: const Text('Keluar'),
-                  ),
-                ],
-              ),
-            );
-          },
+          onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: Colors.grey.withValues(alpha: 0.1)),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.02),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+              border: Border.all(color: AppColors.border),
             ),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             child: Row(
               children: [
-                const Icon(Icons.logout_rounded, color: AppColors.danger, size: 22),
-                const SizedBox(width: 16),
-                const Expanded(
-                  child: Text('Keluar', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.danger)),
+                Container(
+                  width: 42,
+                  height: 42,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(icon, size: 22, color: color),
                 ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title,
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: titleColor ?? AppColors.textPrimary)),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(subtitle!,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.textSecondary)),
+                      ],
+                    ],
+                  ),
+                ),
+                if (showChevron)
+                  const Icon(Icons.chevron_right_rounded,
+                      size: 24, color: AppColors.textSecondary),
               ],
             ),
           ),
@@ -337,6 +442,289 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 }
+
+// ── Sheet: Edit Profil ────────────────────────────────────────────────────────
+
+class _EditProfileSheet extends StatefulWidget {
+  final Map<String, dynamic> profile;
+  final String avatarUrl;
+  const _EditProfileSheet({required this.profile, required this.avatarUrl});
+
+  @override
+  State<_EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<_EditProfileSheet> {
+  late final _nameCtrl =
+      TextEditingController(text: widget.profile['name'] ?? '');
+  late final _usernameCtrl =
+      TextEditingController(text: widget.profile['username'] ?? '');
+  late final _phoneCtrl =
+      TextEditingController(text: widget.profile['phone'] ?? '');
+  late final _cityCtrl =
+      TextEditingController(text: widget.profile['city'] ?? '');
+  late final _provinceCtrl =
+      TextEditingController(text: widget.profile['province'] ?? '');
+
+  final _picker = ImagePicker();
+  late String _avatarUrl = widget.avatarUrl;
+  bool _uploadingAvatar = false;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _usernameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _cityCtrl.dispose();
+    _provinceCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _pickAvatar() async {
+    if (_uploadingAvatar) return;
+    try {
+      final picked = await _picker.pickImage(
+        source: ImageSource.gallery,
+        imageQuality: 80,
+        maxWidth: 640,
+      );
+      if (picked == null) return;
+      setState(() => _uploadingAvatar = true);
+      final bytes = await picked.readAsBytes();
+      final url = await StorageService.uploadAvatar(bytes, picked.name);
+      if (!mounted) return;
+      setState(() => _avatarUrl = url);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Gagal upload foto: $e'),
+            backgroundColor: AppColors.danger));
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingAvatar = false);
+    }
+  }
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Nama tidak boleh kosong'),
+          backgroundColor: AppColors.danger));
+      return;
+    }
+    setState(() => _saving = true);
+    final ok = await UserService.updateProfile(
+      name: name,
+      username: _usernameCtrl.text.trim(),
+      phone: _phoneCtrl.text.trim(),
+      city: _cityCtrl.text.trim(),
+      province: _provinceCtrl.text.trim(),
+      avatarUrl: _avatarUrl.isNotEmpty ? _avatarUrl : null,
+    );
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (ok) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Gagal menyimpan profil'),
+          backgroundColor: AppColors.danger));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: 'Edit Profil',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: GestureDetector(
+              onTap: _pickAvatar,
+              child: Stack(
+                children: [
+                  CircleAvatar(
+                    radius: 42,
+                    backgroundColor: AppColors.primaryLight,
+                    backgroundImage: _avatarUrl.isNotEmpty
+                        ? CachedNetworkImageProvider(_avatarUrl)
+                        : null,
+                    child: _avatarUrl.isEmpty
+                        ? const Icon(Icons.person_rounded,
+                            size: 40, color: AppColors.primary)
+                        : null,
+                  ),
+                  if (_uploadingAvatar)
+                    const Positioned.fill(
+                      child: CircleAvatar(
+                        backgroundColor: Colors.black38,
+                        child: SizedBox(
+                          width: 22,
+                          height: 22,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
+                        ),
+                      ),
+                    ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                      ),
+                      child: const Icon(Icons.camera_alt_rounded,
+                          size: 15, color: Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Center(
+            child: Text('Ketuk foto untuk mengganti',
+                style: TextStyle(
+                    fontSize: 12, color: AppColors.textSecondary)),
+          ),
+          const SizedBox(height: 18),
+          _field('Nama Lengkap', _nameCtrl, Icons.person_outline_rounded),
+          const SizedBox(height: 14),
+          _field('Username', _usernameCtrl, Icons.alternate_email_rounded,
+              hint: 'Nama panggilan singkat, mis. rafly'),
+          const SizedBox(height: 14),
+          _field('No. Telepon', _phoneCtrl, Icons.phone_outlined,
+              keyboard: TextInputType.phone),
+          const SizedBox(height: 14),
+          Row(children: [
+            Expanded(
+                child: _field('Kota', _cityCtrl, Icons.location_city_rounded)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _field('Provinsi', _provinceCtrl, Icons.map_outlined)),
+          ]),
+          const SizedBox(height: 24),
+          _SheetButton(
+              label: 'Simpan', loading: _saving, onPressed: _save),
+        ],
+      ),
+    );
+  }
+
+  Widget _field(String label, TextEditingController ctrl, IconData icon,
+      {TextInputType? keyboard, String? hint}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label,
+            style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: AppColors.textPrimary)),
+        const SizedBox(height: 8),
+        TextField(
+          controller: ctrl,
+          keyboardType: keyboard,
+          style: const TextStyle(fontSize: 15),
+          decoration: _sheetInputDecor(hint: hint ?? label, icon: icon),
+        ),
+      ],
+    );
+  }
+}
+
+// ── Sheet: Pusat Bantuan ──────────────────────────────────────────────────────
+
+class _HelpSheet extends StatelessWidget {
+  const _HelpSheet();
+
+  static const _faqs = [
+    (
+      'Bagaimana cara memesan produk?',
+      'Buka menu Jelajahi atau Beranda, pilih produk, ketuk tombol Tambah, '
+          'lalu buka Keranjang dan ketuk Checkout. Ikuti langkahnya sampai selesai.'
+    ),
+    (
+      'Bagaimana cara melacak pesanan saya?',
+      'Buka menu Pesanan di bagian bawah layar. Pesanan yang sudah '
+          'dikonfirmasi petani memiliki tombol "Lacak" untuk melihat statusnya.'
+    ),
+    (
+      'Metode pembayaran apa saja yang tersedia?',
+      'Saat ini tersedia QRIS dan Transfer Bank yang dipilih saat checkout.'
+    ),
+    (
+      'Bagaimana jika produk yang diterima rusak?',
+      'Hubungi kami melalui tombol Chat di Beranda, sertakan foto produk. '
+          'Tim kami akan membantu proses pengembalian atau penggantian.'
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: 'Pusat Bantuan',
+      child: Column(
+        children: [
+          for (final f in _faqs)
+            Container(
+              margin: const EdgeInsets.only(bottom: 10),
+              decoration: BoxDecoration(
+                border: Border.all(color: AppColors.border),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Theme(
+                data: Theme.of(context)
+                    .copyWith(dividerColor: Colors.transparent),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+                  childrenPadding:
+                      const EdgeInsets.fromLTRB(14, 0, 14, 14),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  title: Text(f.$1,
+                      style: const TextStyle(
+                          fontSize: 14, fontWeight: FontWeight.w700)),
+                  children: [
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(f.$2,
+                          style: const TextStyle(
+                              fontSize: 13,
+                              height: 1.5,
+                              color: AppColors.textSecondary)),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pushNamed(context, '/chat');
+              },
+              icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+              label: const Text('Masih butuh bantuan? Chat kami'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Sheet: Ubah Kata Sandi ────────────────────────────────────────────────────
 
 class _ChangePasswordSheet extends StatefulWidget {
   const _ChangePasswordSheet();
@@ -398,10 +786,85 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(msg),
-        backgroundColor: error ? const Color(0xFFD32F2F) : const Color(0xFF2E7D32),
+        backgroundColor: error ? AppColors.danger : AppColors.success,
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) {
+    return _SheetShell(
+      title: 'Ubah Kata Sandi',
+      subtitle:
+          'Buat kata sandi baru untuk akun Anda. Setelah disimpan, Anda bisa login dengan email + kata sandi.',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Kata Sandi Baru',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _newCtrl,
+            obscureText: _obscureNew,
+            decoration: _sheetInputDecor(
+              hint: 'Minimal 6 karakter',
+              icon: Icons.lock_outline_rounded,
+              suffix: GestureDetector(
+                onTap: () => setState(() => _obscureNew = !_obscureNew),
+                child: Icon(
+                  _obscureNew
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text('Konfirmasi Kata Sandi',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.textPrimary)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _confirmCtrl,
+            obscureText: _obscureConfirm,
+            decoration: _sheetInputDecor(
+              hint: 'Ulangi kata sandi',
+              icon: Icons.lock_outline_rounded,
+              suffix: GestureDetector(
+                onTap: () =>
+                    setState(() => _obscureConfirm = !_obscureConfirm),
+                child: Icon(
+                  _obscureConfirm
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: AppColors.textSecondary,
+                  size: 20,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          _SheetButton(label: 'Simpan', loading: _loading, onPressed: _save),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Kerangka & elemen bersama untuk semua sheet ───────────────────────────────
+
+class _SheetShell extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget child;
+  const _SheetShell({required this.title, this.subtitle, required this.child});
 
   @override
   Widget build(BuildContext context) {
@@ -411,115 +874,103 @@ class _ChangePasswordSheetState extends State<_ChangePasswordSheet> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Container(
-              width: 40, height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.shade300,
-                borderRadius: BorderRadius.circular(2),
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
               ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text('Ubah Kata Sandi',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-          const SizedBox(height: 6),
-          Text(
-            'Buat kata sandi baru untuk akun Anda. Setelah disimpan, Anda bisa login dengan email + kata sandi.',
-            style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.4),
-          ),
-          const SizedBox(height: 20),
-
-          const Text('Kata Sandi Baru',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _newCtrl,
-            obscureText: _obscureNew,
-            decoration: _decor(
-              hint: 'Minimal 6 karakter',
-              icon: Icons.lock_outline_rounded,
-              obscured: _obscureNew,
-              onToggle: () => setState(() => _obscureNew = !_obscureNew),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          const Text('Konfirmasi Kata Sandi',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _confirmCtrl,
-            obscureText: _obscureConfirm,
-            decoration: _decor(
-              hint: 'Ulangi kata sandi',
-              icon: Icons.lock_outline_rounded,
-              obscured: _obscureConfirm,
-              onToggle: () => setState(() => _obscureConfirm = !_obscureConfirm),
-            ),
-          ),
-          const SizedBox(height: 24),
-
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: ElevatedButton(
-              onPressed: _loading ? null : _save,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              child: _loading
-                  ? const SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                    )
-                  : const Text('Simpan',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: Colors.white)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  InputDecoration _decor({
-    required String hint,
-    required IconData icon,
-    required bool obscured,
-    required VoidCallback onToggle,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
-      prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
-      suffixIcon: GestureDetector(
-        onTap: onToggle,
-        child: Icon(
-          obscured ? Icons.visibility_off_outlined : Icons.visibility_outlined,
-          color: AppColors.textSecondary, size: 20,
+            const SizedBox(height: 20),
+            Text(title,
+                style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textPrimary)),
+            if (subtitle != null) ...[
+              const SizedBox(height: 6),
+              Text(subtitle!,
+                  style: const TextStyle(
+                      fontSize: 13,
+                      color: AppColors.textSecondary,
+                      height: 1.4)),
+            ],
+            const SizedBox(height: 20),
+            child,
+          ],
         ),
       ),
-      filled: true,
-      fillColor: const Color(0xFFF7F8FA),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade200),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(color: Colors.grey.shade200),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+    );
+  }
+}
+
+class _SheetButton extends StatelessWidget {
+  final String label;
+  final bool loading;
+  final VoidCallback onPressed;
+  const _SheetButton(
+      {required this.label, required this.loading, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      height: 52,
+      child: ElevatedButton(
+        onPressed: loading ? null : onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primary,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          elevation: 0,
+        ),
+        child: loading
+            ? const SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    color: Colors.white, strokeWidth: 2),
+              )
+            : Text(label,
+                style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white)),
       ),
     );
   }
+}
+
+InputDecoration _sheetInputDecor(
+    {required String hint, required IconData icon, Widget? suffix}) {
+  return InputDecoration(
+    hintText: hint,
+    hintStyle: const TextStyle(color: AppColors.textSecondary, fontSize: 14),
+    prefixIcon: Icon(icon, color: AppColors.textSecondary, size: 20),
+    suffixIcon: suffix,
+    filled: true,
+    fillColor: const Color(0xFFF7F8FA),
+    contentPadding:
+        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.grey.shade200),
+    ),
+    enabledBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: BorderSide(color: Colors.grey.shade200),
+    ),
+    focusedBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: AppColors.primary, width: 1.5),
+    ),
+  );
 }

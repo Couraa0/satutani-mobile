@@ -30,4 +30,28 @@ class StorageService {
 
     return db.storage.from(_bucket).getPublicUrl(path);
   }
+
+  /// Upload foto profil, kembalikan public URL-nya.
+  /// Disimpan di bucket yang sama dengan prefix `avatars/` per user.
+  static Future<String> uploadAvatar(Uint8List bytes, String fileName) async {
+    final ext = fileName.contains('.')
+        ? fileName.split('.').last.toLowerCase()
+        : 'jpg';
+    final contentType = ext == 'png'
+        ? 'image/png'
+        : ext == 'webp'
+            ? 'image/webp'
+            : 'image/jpeg';
+
+    final userId = auth.currentUser?.id ?? 'anon';
+    final path = 'avatars/$userId/${DateTime.now().millisecondsSinceEpoch}.$ext';
+
+    await db.storage.from(_bucket).uploadBinary(
+          path,
+          bytes,
+          fileOptions: FileOptions(contentType: contentType, upsert: true),
+        );
+
+    return db.storage.from(_bucket).getPublicUrl(path);
+  }
 }
