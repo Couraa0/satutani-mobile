@@ -7,6 +7,17 @@ import express from 'express';
 
 const server = express();
 
+// Root route handler to avoid 404 on root URL
+server.get('/', (req, res) => {
+  res.json({
+    status: 'success',
+    message: 'SatuTani Web API is running!',
+    endpoints: {
+      base: '/api',
+    }
+  });
+});
+
 let cachedApp: any = null;
 
 async function bootstrap() {

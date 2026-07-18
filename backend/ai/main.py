@@ -554,6 +554,20 @@ class ChatResponse(BaseModel):
 # ENDPOINTS
 # =============================================================================
 
+@app.get("/")
+def read_root():
+    return {
+        "status": "success",
+        "message": "SatuTani AI Service is running!",
+        "endpoints": {
+            "health": "/health",
+            "wilayah": "/wilayah",
+            "komoditas": "/komoditas",
+            "chat": "/chat"
+        }
+    }
+
+
 @app.get("/health")
 def health():
     return {
