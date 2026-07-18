@@ -225,6 +225,10 @@ class _OrderCard extends StatelessWidget {
               ),
             ],
           ),
+          if (order.status != OrderStatus.dibatalkan) ...[
+            const SizedBox(height: 14),
+            _TrackingStrip(status: order.status),
+          ],
           const Divider(height: 24, color: AppColors.border),
           // Footer: Total & Action
           Row(
@@ -271,6 +275,147 @@ class _ImgFallback extends StatelessWidget {
     return Container(
       color: AppColors.background,
       child: const Icon(Icons.inventory_2_outlined, color: AppColors.primary),
+    );
+  }
+}
+
+/// Strip transparansi posisi paket: stepper mini 4 langkah + keterangan
+/// posisi pesanan saat ini, tampil langsung di kartu pesanan.
+class _TrackingStrip extends StatelessWidget {
+  final OrderStatus status;
+  const _TrackingStrip({required this.status});
+
+  /// -1 = belum dikonfirmasi; 0..3 = Dikonfirmasi, Disiapkan, Dikirim, Diterima.
+  int get _step {
+    switch (status) {
+      case OrderStatus.dikonfirmasi:
+        return 0;
+      case OrderStatus.dipanen:
+        return 1;
+      case OrderStatus.dikirim:
+        return 2;
+      case OrderStatus.selesai:
+        return 3;
+      default:
+        return -1;
+    }
+  }
+
+  (IconData, String, Color) get _info {
+    switch (status) {
+      case OrderStatus.menunggu:
+        return (
+          Icons.hourglass_top_rounded,
+          'Menunggu konfirmasi petani',
+          AppColors.warning
+        );
+      case OrderStatus.dikonfirmasi:
+        return (
+          Icons.check_circle_rounded,
+          'Pesanan dikonfirmasi, menunggu dipanen',
+          AppColors.info
+        );
+      case OrderStatus.dipanen:
+        return (
+          Icons.agriculture_rounded,
+          'Sedang dipanen & disiapkan petani',
+          AppColors.success
+        );
+      case OrderStatus.dikirim:
+        return (
+          Icons.local_shipping_rounded,
+          'Paket dalam perjalanan ke alamatmu',
+          AppColors.info
+        );
+      case OrderStatus.selesai:
+        return (
+          Icons.home_rounded,
+          'Paket telah diterima',
+          AppColors.success
+        );
+      case OrderStatus.dibatalkan:
+        return (Icons.cancel_rounded, 'Dibatalkan', AppColors.danger);
+    }
+  }
+
+  static const _stepIcons = [
+    Icons.check_rounded,
+    Icons.agriculture_rounded,
+    Icons.local_shipping_rounded,
+    Icons.home_rounded,
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, label, color) = _info;
+    return Column(
+      children: [
+        if (_step >= 0) ...[
+          Row(
+            children: [
+              for (var i = 0; i < _stepIcons.length; i++) ...[
+                if (i > 0)
+                  Expanded(
+                    child: Container(
+                      height: 3,
+                      margin: const EdgeInsets.symmetric(horizontal: 4),
+                      decoration: BoxDecoration(
+                        color: i <= _step
+                            ? AppColors.primary
+                            : AppColors.border,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                Container(
+                  width: 26,
+                  height: 26,
+                  decoration: BoxDecoration(
+                    color: i <= _step ? AppColors.primary : Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color:
+                          i <= _step ? AppColors.primary : AppColors.border,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Icon(
+                    _stepIcons[i],
+                    size: 14,
+                    color: i <= _step
+                        ? Colors.white
+                        : AppColors.textSecondary,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 10),
+        ],
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, size: 16, color: color),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: color),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
