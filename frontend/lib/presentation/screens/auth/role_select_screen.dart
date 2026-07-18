@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/constants/strings.dart';
 
@@ -20,11 +21,14 @@ class RoleSelectScreen extends StatelessWidget {
               SizedBox(
                 height: 80,
                 child: Image.asset(
-                  'assets/images/logo_green.png',
+                  'assets/images/logo ijo gelap.png',
                   errorBuilder: (_, __, ___) =>
                       const Icon(Icons.eco_rounded, size: 70, color: AppColors.primary),
                 ),
-              ),
+              ).animate().scale(
+                  duration: 450.ms,
+                  begin: const Offset(0.7, 0.7),
+                  curve: Curves.easeOutBack),
               const SizedBox(height: 16),
               const Text(
                 AppStrings.appName,
@@ -49,7 +53,10 @@ class RoleSelectScreen extends StatelessWidget {
                 subtitle: AppStrings.roleFarmerSub,
                 color: AppColors.primary,
                 onTap: () => Navigator.pushNamed(context, '/register', arguments: {'role': 'farmer'}),
-              ),
+              )
+                  .animate(delay: 150.ms)
+                  .fadeIn(duration: 350.ms)
+                  .slideX(begin: -0.1, curve: Curves.easeOut),
               const SizedBox(height: 16),
               // Consumer Card
               _RoleCard(
@@ -58,7 +65,10 @@ class RoleSelectScreen extends StatelessWidget {
                 subtitle: AppStrings.roleConsSub,
                 color: AppColors.secondary,
                 onTap: () => Navigator.pushNamed(context, '/register', arguments: {'role': 'consumer'}),
-              ),
+              )
+                  .animate(delay: 280.ms)
+                  .fadeIn(duration: 350.ms)
+                  .slideX(begin: 0.1, curve: Curves.easeOut),
               const Spacer(),
               TextButton(
                 onPressed: () => Navigator.pushReplacementNamed(context, '/login'),

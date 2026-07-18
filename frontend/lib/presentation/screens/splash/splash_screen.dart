@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/services/auth_service.dart';
 
@@ -10,24 +11,11 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _fadeAnim;
-  late Animation<Offset> _slideAnim;
-
+class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.dark);
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200));
-    _fadeAnim = Tween<double>(begin: 0, end: 1).animate(
-        CurvedAnimation(parent: _ctrl, curve: const Interval(0, 0.6, curve: Curves.easeOut)));
-    _slideAnim = Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero)
-        .animate(CurvedAnimation(
-            parent: _ctrl, curve: const Interval(0, 0.7, curve: Curves.easeOut)));
-    _ctrl.forward();
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
     Future.delayed(const Duration(seconds: 3), () async {
       if (!mounted) return;
       if (AuthService.isLoggedIn) {
@@ -46,164 +34,161 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
     return Scaffold(
-      backgroundColor: const Color(0xFFE8F5E9),
-      body: Stack(
-        children: [
-          // Background Radial Blob Gradient (Variasi Splash Screen)
-          Positioned.fill(
-            child: Stack(
-              children: [
-                // Blob 1 - Kiri Atas: Hijau Solid Kuat
-                Positioned(
-                  top: -80,
-                  left: -80,
-                  child: _blob(380, const Color(0xFF2D7D46), 0.7),
-                ),
-                // Blob 2 - Kanan Bawah: Hijau Medium Terang
-                Positioned(
-                  bottom: -100,
-                  right: -50,
-                  child: _blob(320, const Color(0xFF4CAF50), 0.5),
-                ),
-                // Blob 3 - Tengah Kanan: Hijau Tua Leaf
-                Positioned(
-                  top: MediaQuery.of(context).size.height * 0.4,
-                  right: -120,
-                  child: _blob(300, const Color(0xFF1B5E20), 0.6),
-                ),
-                // Blob 4 - Kiri Bawah: Hijau Muda
-                Positioned(
-                  bottom: 50,
-                  left: -50,
-                  child: _blob(250, const Color(0xFF81C784), 0.4),
-                ),
-                // Blob 5 - Atas Tengah: Overlay naturalness
-                Positioned(
-                  top: 100,
-                  right: 100,
-                  child: _blob(200, const Color(0xFFA5D6A7), 0.35),
-                ),
-              ],
+      body: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primaryDark,
+              AppColors.primary,
+              AppColors.primaryMid,
+            ],
+          ),
+        ),
+        child: Stack(
+          children: [
+            // Glow lembut untuk kedalaman
+            Positioned(
+              top: -size.width * 0.3,
+              right: -size.width * 0.3,
+              child: _glow(size.width * 0.9, Colors.white, 0.06),
             ),
-          ),
-          // Floating produce decorations (top-left cluster)
-          Positioned(
-            top: 30,
-            left: -20,
-            child: _FloatingEmoji(emoji: '🫐', size: 70, delay: 0),
-          ),
-          Positioned(
-            top: 80,
-            left: 60,
-            child: _FloatingEmoji(emoji: '🥑', size: 55, delay: 200),
-          ),
-          Positioned(
-            top: 20,
-            right: 10,
-            child: _FloatingEmoji(emoji: '🍓', size: 65, delay: 100),
-          ),
-          Positioned(
-            top: 100,
-            right: 60,
-            child: _FloatingEmoji(emoji: '🥕', size: 50, delay: 300),
-          ),
-          Positioned(
-            top: 170,
-            left: 10,
-            child: _FloatingEmoji(emoji: '🌿', size: 48, delay: 400),
-          ),
-          // Bottom cluster
-          Positioned(
-            bottom: 80,
-            left: 20,
-            child: _FloatingEmoji(emoji: '🍅', size: 58, delay: 150),
-          ),
-          Positioned(
-            bottom: 140,
-            left: 80,
-            child: _FloatingEmoji(emoji: '🥦', size: 45, delay: 350),
-          ),
-          Positioned(
-            bottom: 60,
-            right: 20,
-            child: _FloatingEmoji(emoji: '🌽', size: 62, delay: 250),
-          ),
-          Positioned(
-            bottom: 150,
-            right: 70,
-            child: _FloatingEmoji(emoji: '🍋', size: 50, delay: 450),
-          ),
-          // Center logo
-          Center(
-            child: FadeTransition(
-              opacity: _fadeAnim,
-              child: SlideTransition(
-                position: _slideAnim,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Logo container – glassmorphism style di atas gradient hijau
-                    Container(
-                      width: 110,
-                      height: 110,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.25),
-                        borderRadius: BorderRadius.circular(28),
-                        border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 1.5),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.15),
-                            blurRadius: 30,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Text('🌾', style: TextStyle(fontSize: 52)),
-                      ),
+            Positioned(
+              bottom: -size.width * 0.4,
+              left: -size.width * 0.3,
+              child: _glow(size.width, const Color(0xFF4ADE80), 0.10),
+            ),
+            // Pola daun samar
+            Positioned(
+              top: 60,
+              left: 24,
+              child: _leaf(0.10, 40, -0.4),
+            ),
+            Positioned(
+              top: 140,
+              right: 40,
+              child: _leaf(0.08, 28, 0.6),
+            ),
+            Positioned(
+              bottom: 160,
+              right: 28,
+              child: _leaf(0.10, 36, 0.3),
+            ),
+            Positioned(
+              bottom: 220,
+              left: 44,
+              child: _leaf(0.07, 24, -0.7),
+            ),
+
+            // Konten tengah
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Logo di kartu kaca
+                  Container(
+                    width: 128,
+                    height: 128,
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(32),
+                      border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          width: 1.5),
                     ),
-                    const SizedBox(height: 20),
-                    const Text(
-                      'SatuTani',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.0,
-                        shadows: [
-                          Shadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
-                        ],
-                      ),
+                    child: Image.asset(
+                      'assets/images/logo putih.png',
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Center(
+                          child: Text('🌾', style: TextStyle(fontSize: 52))),
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Dari Kebun Langsung ke Mejamu',
+                  )
+                      .animate()
+                      .scale(
+                          duration: 600.ms,
+                          begin: const Offset(0.6, 0.6),
+                          curve: Curves.easeOutBack)
+                      .fadeIn(duration: 400.ms)
+                      .then(delay: 400.ms)
+                      .shimmer(
+                          duration: 1200.ms,
+                          color: Colors.white.withValues(alpha: 0.35)),
+                  const SizedBox(height: 28),
+                  const Text(
+                    'SatuTani',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 38,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.5,
+                    ),
+                  )
+                      .animate(delay: 250.ms)
+                      .fadeIn(duration: 500.ms)
+                      .slideY(begin: 0.3, curve: Curves.easeOut),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 7),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '🌱 Dari Kebun Langsung ke Mejamu',
                       style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.85),
+                        color: Colors.white.withValues(alpha: 0.92),
                         fontSize: 13,
-                        letterSpacing: 0.3,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
                       ),
                     ),
-                  ],
-                ),
+                  )
+                      .animate(delay: 450.ms)
+                      .fadeIn(duration: 500.ms)
+                      .slideY(begin: 0.4, curve: Curves.easeOut),
+                ],
               ),
             ),
-          ),
-        ],
+
+            // Loading indicator bawah
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 48,
+              child: Column(
+                children: [
+                  const SizedBox(
+                    width: 26,
+                    height: 26,
+                    child: CircularProgressIndicator(
+                      color: Colors.white70,
+                      strokeWidth: 2.5,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Menghubungkan petani & pembeli',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.55),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ).animate(delay: 700.ms).fadeIn(duration: 600.ms),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  // Helper function untuk menggambar blob radial gradient
-  Widget _blob(double size, Color color, double opacity) {
+  Widget _glow(double size, Color color, double opacity) {
     return Container(
       width: size,
       height: size,
@@ -214,57 +199,19 @@ class _SplashScreenState extends State<SplashScreen>
             color.withValues(alpha: opacity),
             color.withValues(alpha: 0.0),
           ],
-          stops: const [0.0, 1.0],
         ),
       ),
     );
   }
-}
 
-class _FloatingEmoji extends StatefulWidget {
-  final String emoji;
-  final double size;
-  final int delay;
-
-  const _FloatingEmoji({
-    required this.emoji,
-    required this.size,
-    required this.delay,
-  });
-
-  @override
-  State<_FloatingEmoji> createState() => _FloatingEmojiState();
-}
-
-class _FloatingEmojiState extends State<_FloatingEmoji>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _fadeAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 800));
-    _fadeAnim =
-        Tween<double>(begin: 0, end: 1).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOut));
-    Future.delayed(Duration(milliseconds: widget.delay), () {
-      if (mounted) _ctrl.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return FadeTransition(
-      opacity: _fadeAnim,
-      child: Text(widget.emoji,
-          style: TextStyle(fontSize: widget.size)),
+  Widget _leaf(double opacity, double size, double angle) {
+    return Transform.rotate(
+      angle: angle,
+      child: Icon(
+        Icons.eco_rounded,
+        size: size,
+        color: Colors.white.withValues(alpha: opacity),
+      ),
     );
   }
 }
