@@ -6,8 +6,10 @@ import '../../../core/constants/supabase_config.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/product_service.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../core/services/user_service.dart';
 import '../../../data/cart_state.dart';
 import '../../../data/models/product_model.dart';
+import '../../consumer_navigation.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,10 +30,14 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _productsFuture = ProductService.getAllProducts(limit: 20);
     _loadProfile();
+    // Muat ulang profil ketika di-update dari halaman Profil (foto/username),
+    // karena layar ini tetap hidup di dalam IndexedStack.
+    profileVersion.addListener(_loadProfile);
   }
 
   @override
   void dispose() {
+    profileVersion.removeListener(_loadProfile);
     _bannerCtrl.dispose();
     super.dispose();
   }
@@ -41,7 +47,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       final data = await db
           .from('profiles')
-          .select('name, city, province, avatar_url')
+          .select('name, username, city, province, avatar_url')
           .eq('id', AuthService.currentUser!.id)
           .single();
       if (mounted) setState(() => _profile = data);
@@ -51,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _refresh() async {
+    _loadProfile();
     final f = ProductService.getAllProducts(limit: 20);
     setState(() => _productsFuture = f);
     try {
@@ -66,7 +73,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return 'Selamat malam';
   }
 
+  /// Nama pendek untuk greeting: username kalau sudah diisi,
+  /// fallback ke kata pertama dari nama lengkap.
   String get _firstName {
+    final username = (_profile?['username'] as String?)?.trim() ?? '';
+    if (username.isNotEmpty) return username;
     final name = (_profile?['name'] as String?)?.trim() ?? '';
     if (name.isEmpty) return '';
     return name.split(' ').first;
@@ -92,12 +103,6 @@ class _HomeScreenState extends State<HomeScreen> {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
     return Scaffold(
       backgroundColor: Colors.white,
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => Navigator.pushNamed(context, '/chat'),
-        backgroundColor: AppColors.primary,
-        elevation: 4,
-        child: const Icon(Icons.smart_toy_rounded, color: Colors.white),
-      ),
       body: FutureBuilder<List<ProductModel>>(
         future: _productsFuture,
         builder: (context, snap) {
@@ -108,7 +113,6 @@ class _HomeScreenState extends State<HomeScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(child: _buildHeader(context)),
-                SliverToBoxAdapter(child: _buildCategories(context)),
                 SliverToBoxAdapter(child: _buildBanner()),
                 ..._buildProductSlivers(context, snap),
               ],
@@ -204,7 +208,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 18),
               GestureDetector(
-                onTap: () => Navigator.pushNamed(context, '/explore'),
+                // Pindah ke tab Jelajahi di bottom nav (bukan push layar baru).
+                onTap: () => ConsumerNavigation.tabIndex.value = 1,
                 child: Container(
                   height: 48,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -225,52 +230,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Kategori pill ─────────────────────────────────────────────────────────
-
-  Widget _buildCategories(BuildContext context) {
-    // (emoji, label, id kategori di DB — dipakai filter di halaman Jelajahi)
-    final cats = [
-      ('🥬', 'Sayuran', 'vegetable'),
-      ('🍎', 'Buah', 'fruit'),
-      ('🌾', 'Biji-bijian', 'grain'),
-      ('🌶️', 'Rempah', 'spice'),
-      ('🥚', 'Susu & Telur', 'dairy'),
-    ];
-    return SizedBox(
-      height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(20, 0, 20, 0),
-        itemCount: cats.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) => Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/explore',
-                arguments: cats[i].$3),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: AppColors.border),
-              ),
-              child: Row(
-                children: [
-                  Text(cats[i].$1, style: const TextStyle(fontSize: 15)),
-                  const SizedBox(width: 6),
-                  Text(cats[i].$2,
-                      style: const TextStyle(
-                          fontSize: 12.5, fontWeight: FontWeight.w600)),
-                ],
-              ),
-            ),
           ),
         ),
       ),
@@ -432,7 +391,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return [
       SliverToBoxAdapter(
         child: _sectionHeader('Panen Segar Hari Ini',
-            onSeeAll: () => Navigator.pushNamed(context, '/explore')),
+            onSeeAll: () => ConsumerNavigation.tabIndex.value = 1),
       ),
       SliverToBoxAdapter(
         child: SizedBox(
