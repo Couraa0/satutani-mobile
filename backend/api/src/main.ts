@@ -1,3 +1,5 @@
+//Main Function
+
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -8,10 +10,7 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
   app.enableCors({
-    origin: [
-      'https://satutani-mobile.vercel.app',
-      'http://localhost:3000',
-    ],
+    origin: '*',
   });
 
   const port = process.env.PORT ?? 4000;

@@ -59,7 +59,7 @@ class _MarketForecastScreenState extends State<MarketForecastScreen> with Single
           SliverAppBar(
             pinned: true,
             expandedHeight: 160,
-            backgroundColor: AppColors.secondary,
+            backgroundColor: AppColors.primary,
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
               onPressed: () => Navigator.pop(context),
@@ -70,7 +70,7 @@ class _MarketForecastScreenState extends State<MarketForecastScreen> with Single
                   gradient: LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [Color(0xFFF5A623), Color(0xFFE8920E)],
+                    colors: [Color(0xFF005C25), Color(0xFF00441b)],
                   ),
                 ),
                 child: SafeArea(
@@ -149,10 +149,10 @@ class _MarketForecastScreenState extends State<MarketForecastScreen> with Single
                               duration: const Duration(milliseconds: 250),
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               decoration: BoxDecoration(
-                                color: selected ? AppColors.secondary : Colors.transparent,
+                                color: selected ? AppColors.primary : Colors.transparent,
                                 borderRadius: BorderRadius.circular(10),
                                 boxShadow: selected
-                                    ? [BoxShadow(color: AppColors.secondary.withValues(alpha: 0.3), blurRadius: 6)]
+                                    ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 6)]
                                     : null,
                               ),
                               child: Text(
@@ -189,13 +189,13 @@ class _MarketForecastScreenState extends State<MarketForecastScreen> with Single
                           duration: const Duration(milliseconds: 250),
                           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
                           decoration: BoxDecoration(
-                            color: selected ? AppColors.secondary : AppColors.surface,
+                            color: selected ? AppColors.primary : AppColors.surface,
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: selected ? AppColors.secondary : AppColors.border,
+                              color: selected ? AppColors.primary : AppColors.border,
                             ),
                             boxShadow: selected
-                                ? [BoxShadow(color: AppColors.secondary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))]
+                                ? [BoxShadow(color: AppColors.primary.withValues(alpha: 0.3), blurRadius: 8, offset: const Offset(0, 2))]
                                 : null,
                           ),
                           child: Text(
@@ -221,12 +221,12 @@ class _MarketForecastScreenState extends State<MarketForecastScreen> with Single
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        AppColors.secondary.withValues(alpha: 0.08),
+                        AppColors.primary.withValues(alpha: 0.08),
                         AppColors.primary.withValues(alpha: 0.05),
                       ],
                     ),
                     borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppColors.secondary.withValues(alpha: 0.15)),
+                    border: Border.all(color: AppColors.primary.withValues(alpha: 0.15)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -236,10 +236,10 @@ class _MarketForecastScreenState extends State<MarketForecastScreen> with Single
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: AppColors.secondary.withValues(alpha: 0.15),
+                              color: AppColors.primary.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(10),
                             ),
-                            child: const Icon(Icons.insights_rounded, color: AppColors.secondary, size: 18),
+                            child: const Icon(Icons.insights_rounded, color: AppColors.primary, size: 18),
                           ),
                           const SizedBox(width: 10),
                           const Text(
@@ -546,10 +546,10 @@ class _ForecastCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
-                    color: AppColors.info.withValues(alpha: 0.1),
+                    color: AppColors.primary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: const Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.info),
+                  child: const Icon(Icons.auto_awesome_rounded, size: 14, color: AppColors.primary),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -558,7 +558,7 @@ class _ForecastCard extends StatelessWidget {
                     children: [
                       const Text(
                         'Analisis AI',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.info),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.primary),
                       ),
                       const SizedBox(height: 3),
                       Text(

@@ -1,12 +1,13 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../constants/api_config.dart';
 import 'supabase_service.dart';
 
 /// Service untuk transaksi / pesanan.
 /// Catatan: token yang dikirim ke backend HARUS access token (JWT) dari session,
 /// bukan user id — AuthGuard di backend memverifikasi via supabase.auth.getUser(token).
 class OrderService {
-  static const String baseUrl = 'http://localhost:4000/api';
+  static const String baseUrl = ApiConfig.baseUrl;
 
   static String? get _token => auth.currentSession?.accessToken;
 

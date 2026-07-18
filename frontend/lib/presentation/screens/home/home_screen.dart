@@ -92,6 +92,12 @@ class _HomeScreenState extends State<HomeScreen> {
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle.light);
     return Scaffold(
       backgroundColor: Colors.white,
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => Navigator.pushNamed(context, '/chat'),
+        backgroundColor: AppColors.primary,
+        elevation: 4,
+        child: const Icon(Icons.smart_toy_rounded, color: Colors.white),
+      ),
       body: FutureBuilder<List<ProductModel>>(
         future: _productsFuture,
         builder: (context, snap) {

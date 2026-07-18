@@ -3,9 +3,10 @@ import 'dart:convert';
 import '../../data/models/product_model.dart';
 import 'auth_service.dart';
 
+import '../constants/api_config.dart';
+
 class ProductService {
-  static const String baseUrl =
-      'http://localhost:4000/api'; // Sesuaikan dengan base URL backend Anda
+  static const String baseUrl = ApiConfig.baseUrl;
 
   /// Dapatkan semua produk dengan filter dan pagination
   static Future<List<ProductModel>> getAllProducts({

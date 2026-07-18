@@ -17,4 +17,6 @@ flutter pub get
 # Build the project (env vars di-pass sebagai compile-time constants)
 flutter build web --release \
   --dart-define=SUPABASE_URL="${SUPABASE_URL}" \
-  --dart-define=SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY}"
+  --dart-define=SUPABASE_ANON_KEY="${SUPABASE_ANON_KEY}" \
+  --dart-define=API_URL="${API_URL}"
+

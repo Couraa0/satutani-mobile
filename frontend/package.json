@@ -2,7 +2,7 @@
   "name": "satutani_mobile",
   "version": "1.0.0+1",
   "scripts": {
-    "build": "flutter build web --release",
-    "deploy": "flutter build web --release && npx vercel build/web --prod"
+    "build": "bash vercel-build.sh",
+    "deploy": "bash vercel-build.sh && npx vercel build/web --prod"
   }
 }

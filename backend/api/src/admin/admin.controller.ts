@@ -1,4 +1,13 @@
-import { Controller, Get, Patch, Delete, Param, Query, Body, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Delete,
+  Param,
+  Query,
+  Body,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
@@ -35,7 +44,10 @@ export class AdminController {
 
   // Products
   @Get('products')
-  getAllProducts(@Query('limit') limit?: string, @Query('offset') offset?: string) {
+  getAllProducts(
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
     return this.adminService.getAllProducts({
       limit: limit ? +limit : 20,
       offset: offset ? +offset : 0,
@@ -48,7 +60,10 @@ export class AdminController {
   }
 
   @Patch('products/:id/availability')
-  toggleAvailability(@Param('id') id: string, @Body('isAvailable') isAvailable: boolean) {
+  toggleAvailability(
+    @Param('id') id: string,
+    @Body('isAvailable') isAvailable: boolean,
+  ) {
     return this.adminService.toggleProductAvailability(id, isAvailable);
   }
 

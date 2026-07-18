@@ -4,14 +4,20 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/vercel-deploy.yml'
   pull_request:
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/vercel-deploy.yml'
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: satutani_mobile
+        working-directory: frontend
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,7 +32,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web
-        run: flutter build web --release
+        run: flutter build web --release --dart-define=API_URL=https://satutani-api-edbcfnc9g0f9ddd3.indonesiacentral-01.azurewebsites.net/api
 
       - name: Copy Vercel Configuration
         run: cp vercel.json build/web/vercel.json

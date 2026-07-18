@@ -7,7 +7,11 @@ export class AdminService {
 
   // ── Users ─────────────────────────────────────────────────────────────────
 
-  async getAllUsers(params: { role?: string; limit?: number; offset?: number }) {
+  async getAllUsers(params: {
+    role?: string;
+    limit?: number;
+    offset?: number;
+  }) {
     const { role, limit = 20, offset = 0 } = params;
     return this.prisma.profile.findMany({
       where: role ? { role: role as any } : undefined,
@@ -29,6 +33,7 @@ export class AdminService {
 
   async getAllProducts(params: { limit?: number; offset?: number }) {
     const { limit = 20, offset = 0 } = params;
+
     return this.prisma.product.findMany({
       include: {
         farmer: { select: { id: true, name: true } },
@@ -53,7 +58,11 @@ export class AdminService {
 
   // ── Orders ────────────────────────────────────────────────────────────────
 
-  async getAllOrders(params: { status?: string; limit?: number; offset?: number }) {
+  async getAllOrders(params: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }) {
     const { status, limit = 20, offset = 0 } = params;
     return this.prisma.order.findMany({
       where: status ? { status: status as any } : undefined,
@@ -89,9 +98,17 @@ export class AdminService {
     ]);
 
     return {
-      users: { total: totalUsers, farmers: totalFarmers, consumers: totalConsumers },
+      users: {
+        total: totalUsers,
+        farmers: totalFarmers,
+        consumers: totalConsumers,
+      },
       products: { total: totalProducts },
-      orders: { total: totalOrders, completed: completedOrders, pending: pendingOrders },
+      orders: {
+        total: totalOrders,
+        completed: completedOrders,
+        pending: pendingOrders,
+      },
     };
   }
 }
