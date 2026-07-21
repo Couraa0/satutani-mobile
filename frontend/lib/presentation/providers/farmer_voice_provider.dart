@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../core/services/voice_ai_service.dart';
 import '../../core/services/product_service.dart';
 import '../../core/services/order_service.dart';
@@ -56,8 +58,20 @@ class FarmerVoiceState {
 }
 
 class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
+  final FlutterTts _flutterTts = FlutterTts();
+  final stt.SpeechToText _speech = stt.SpeechToText();
+
   FarmerVoiceNotifier() : super(FarmerVoiceState()) {
+    _initAudioServices();
     loadDashboardData();
+  }
+
+  void _initAudioServices() async {
+    try {
+      await _flutterTts.setLanguage("id-ID");
+      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts.setPitch(1.0);
+    } catch (_) {}
   }
 
   /// Load initial dashboard data (products & orders)
@@ -74,7 +88,6 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       List<ProductModel> fetchedProducts = results[0] as List<ProductModel>;
       List<FarmerOrder> fetchedOrders = results[1] as List<FarmerOrder>;
 
-      // Mock initial items if empty for visually rich initial demo mirror
       if (fetchedProducts.isEmpty) {
         fetchedProducts = _defaultDemoProducts();
       }
@@ -92,29 +105,59 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     }
   }
 
-  /// Start Listening to Voice Input
-  void startListening() {
+  /// Start Listening to Voice Input from Microphone (STT)
+  void startListening() async {
     state = state.copyWith(
       voiceState: VoiceState.listening,
       recognizedText: 'Mendengarkan suara Anda...',
       speechResponse: '',
       notificationMessage: null,
     );
+
+    try {
+      bool available = await _speech.initialize(
+        onStatus: (status) {
+          if ((status == 'done' || status == 'notListening') &&
+              state.voiceState == VoiceState.listening &&
+              state.recognizedText.isNotEmpty &&
+              state.recognizedText != 'Mendengarkan suara Anda...') {
+            processSpeech(state.recognizedText);
+          }
+        },
+        onError: (_) {},
+      );
+
+      if (available) {
+        _speech.listen(
+          localeId: 'id_ID',
+          onResult: (result) {
+            if (result.recognizedWords.isNotEmpty) {
+              state = state.copyWith(recognizedText: result.recognizedWords);
+            }
+          },
+        );
+      }
+    } catch (_) {
+      // Fallback mode if mic permission is pending or in web simulator
+    }
   }
 
-  /// Process Voice Command (handles STT -> Intent Classifier -> API Exec -> TTS Feedback)
+  /// Process Voice Command & Speak Response Out Loud (TTS Audio Feedback)
   Future<void> processSpeech(String rawSpeech) async {
+    try {
+      await _speech.stop();
+    } catch (_) {}
+
     state = state.copyWith(
       voiceState: VoiceState.processing,
       recognizedText: rawSpeech,
       speechResponse: 'Menganalisis maksud perintah...',
     );
 
-    await Future.delayed(const Duration(milliseconds: 700));
+    await Future.delayed(const Duration(milliseconds: 600));
 
     final result = await VoiceAiService.processVoiceCommand(rawSpeech);
 
-    // Dynamic UI Update according to executed backend intent
     List<ProductModel> updatedProducts = List.from(state.products);
     List<FarmerOrder> updatedOrders = List.from(state.orders);
 
@@ -132,7 +175,10 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       notificationMessage: result.success ? "✅ Aksi Suara Berhasil Dieksekusi" : "❌ Gagal Mengeksekusi Aksi",
     );
 
-    // Automatically transition back to idle after speaking duration
+    // Speak audio voice response out loud via TTS
+    _speakAudioResponse(result.speechResponse);
+
+    // Transition back to idle after speech completes
     Future.delayed(const Duration(seconds: 4), () {
       if (mounted && state.voiceState == VoiceState.speaking) {
         state = state.copyWith(voiceState: VoiceState.idle);
@@ -140,8 +186,20 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     });
   }
 
-  /// Reset Voice Assistant state
+  /// Speak audio response using Text-to-Speech
+  void _speakAudioResponse(String responseText) async {
+    try {
+      await _flutterTts.stop();
+      await _flutterTts.speak(responseText);
+    } catch (_) {}
+  }
+
+  /// Stop listening & speech synthesis
   void stopListening() {
+    try {
+      _speech.stop();
+      _flutterTts.stop();
+    } catch (_) {}
     state = state.copyWith(voiceState: VoiceState.idle);
   }
 
@@ -184,6 +242,15 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
         rating: 4.7,
       ),
     ];
+  }
+
+  @override
+  void dispose() {
+    try {
+      _speech.stop();
+      _flutterTts.stop();
+    } catch (_) {}
+    super.dispose();
   }
 }
 

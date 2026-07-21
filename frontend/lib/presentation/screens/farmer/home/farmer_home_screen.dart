@@ -10,6 +10,7 @@ import '../../../providers/farmer_voice_provider.dart';
 import '../../../widgets/voice_hub/audio_waveform_widget.dart';
 import '../../../widgets/voice_hub/floating_voice_hub.dart';
 import '../products/add_product_screen.dart';
+import '../../chat/farmer_ai_chat_screen.dart';
 import 'ai_price_check_screen.dart';
 import 'market_forecast_screen.dart';
 
@@ -331,6 +332,69 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                           onTap: () => ref
                               .read(farmerVoiceProvider.notifier)
                               .processSpeech("Hama apa yang perlu diwaspadai musim ini?"),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // ── Fitur AI & Akses Cepat ───────────────────────────────────────
+                  const SizedBox(height: 20),
+                  _SectionTitle(title: 'Fitur AI & Akses Cepat', icon: Icons.psychology_rounded),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.psychology_rounded,
+                            label: 'Cek Harga AI',
+                            color: AppColors.info,
+                            bgColor: const Color(0xFFE3F2FD),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AiPriceCheckScreen()),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.analytics_rounded,
+                            label: 'Prediksi Pasar',
+                            color: AppColors.secondary,
+                            bgColor: AppColors.secondaryLight,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const MarketForecastScreen()),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.smart_toy_rounded,
+                            label: 'AI Chat Bot',
+                            color: AppColors.primary,
+                            bgColor: AppColors.primaryLight,
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const FarmerAiChatScreen()),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _QuickAction(
+                            icon: Icons.add_box_rounded,
+                            label: 'Tambah Manual',
+                            color: Colors.teal,
+                            bgColor: const Color(0xFFE0F2F1),
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AddProductScreen()),
+                            ).then((_) => ref.read(farmerVoiceProvider.notifier).loadDashboardData()),
+                          ),
                         ),
                       ],
                     ),
