@@ -8,7 +8,6 @@ import '../../../../data/mock/orders_mock.dart' show OrderStatus;
 import '../../../../presentation/widgets/status_badge.dart';
 import '../../../providers/farmer_voice_provider.dart';
 import '../../../widgets/voice_hub/audio_waveform_widget.dart';
-import '../../../widgets/voice_hub/floating_voice_hub.dart';
 import '../products/add_product_screen.dart';
 import '../../chat/farmer_ai_chat_screen.dart';
 import 'ai_price_check_screen.dart';
@@ -50,10 +49,6 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
     if (hour < 18) return 'Selamat Sore 🌅';
     return 'Selamat Malam 🌙';
   }
-
-  static String _fmt(double v) => v
-      .toStringAsFixed(0)
-      .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
 
   @override
   Widget build(BuildContext context) {
@@ -694,6 +689,87 @@ class _OrderCard extends StatelessWidget {
         ])),
         const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
       ]),
+    );
+  }
+}
+
+class _QuickAction extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final Color bgColor;
+  final VoidCallback onTap;
+
+  const _QuickAction({
+    required this.icon,
+    required this.label,
+    required this.color,
+    required this.bgColor,
+    required this.onTap,
+  });
+
+  @override
+  State<_QuickAction> createState() => _QuickActionState();
+}
+
+class _QuickActionState extends State<_QuickAction> with SingleTickerProviderStateMixin {
+  late AnimationController _ctrl;
+  late Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
+    _scale = Tween<double>(begin: 1, end: 0.93).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeIn));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: (_) => _ctrl.forward(),
+      onTapUp: (_) {
+        _ctrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _ctrl.reverse(),
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+          decoration: BoxDecoration(
+            color: widget.bgColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: widget.color.withValues(alpha: 0.2)),
+            boxShadow: [
+              BoxShadow(color: widget.color.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 3)),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.15), shape: BoxShape.circle),
+                child: Icon(widget.icon, color: widget.color, size: 20),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                widget.label,
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: widget.color),
+                maxLines: 2,
+                textAlign: TextAlign.center,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

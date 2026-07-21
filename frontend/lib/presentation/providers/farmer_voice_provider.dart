@@ -129,7 +129,7 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
       if (available) {
         _speech.listen(
-          localeId: 'id_ID',
+          listenOptions: stt.SpeechListenOptions(localeId: 'id_ID'),
           onResult: (result) {
             if (result.recognizedWords.isNotEmpty) {
               state = state.copyWith(recognizedText: result.recognizedWords);
