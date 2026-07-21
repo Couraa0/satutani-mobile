@@ -34,8 +34,19 @@ jobs:
       - name: Build Web
         run: flutter build web --release --dart-define=API_URL=https://satutani-api-edbcfnc9g0f9ddd3.indonesiacentral-01.azurewebsites.net/api
 
-      - name: Copy Vercel Configuration
-        run: cp vercel.json build/web/vercel.json
+      - name: Prepare Vercel Prebuilt Output
+        run: |
+          mkdir -p .vercel/output/static
+          cp -r build/web/* .vercel/output/static/
+          cat << 'EOF' > .vercel/output/config.json
+          {
+            "version": 3,
+            "routes": [
+              { "handle": "filesystem" },
+              { "src": "/.*", "dest": "/index.html" }
+            ]
+          }
+          EOF
 
       - name: Deploy to Vercel
         env:
@@ -43,5 +54,5 @@ jobs:
           VERCEL_ORG_ID: "team_JujNQWLjVABHBQTjVNzOTBhS"
           VERCEL_PROJECT_ID: "prj_n1IhxVF8D2qNHTHkywbwf9trPqZU"
         run: |
-          cd build/web
-          npx vercel --prod --yes --token $VERCEL_TOKEN
+          npx vercel deploy --prebuilt --prod --yes --token $VERCEL_TOKEN
+
