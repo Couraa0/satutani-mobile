@@ -32,7 +32,7 @@ jobs:
         run: flutter pub get
 
       - name: Build Web
-        run: flutter build web --release --dart-define=API_URL=https://satutani-api-edbcfnc9g0f9ddd3.indonesiacentral-01.azurewebsites.net/api
+        run: flutter build web --release --dart-define=API_URL=https://satutani-mobile-backend-web.vercel.app/api
 
       - name: Prepare Vercel Prebuilt Output
         run: |
