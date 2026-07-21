@@ -47,12 +47,19 @@ jobs:
             ]
           }
           EOF
+          # Symlink frontend/frontend -> . to handle Vercel CLI appending rootDirectory when run inside frontend
+          ln -s . frontend
+          # Copy .vercel output to repo root as well
+          mkdir -p ../.vercel
+          cp -r .vercel/* ../.vercel/
 
       - name: Deploy to Vercel
+        working-directory: .
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: "team_JujNQWLjVABHBQTjVNzOTBhS"
           VERCEL_PROJECT_ID: "prj_n1IhxVF8D2qNHTHkywbwf9trPqZU"
         run: |
           npx vercel deploy --prebuilt --prod --yes --token $VERCEL_TOKEN
+
 
