@@ -53,7 +53,34 @@ class SatuTaniApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       locale: DevicePreview.locale(context),
-      builder: DevicePreview.appBuilder,
+      builder: (context, child) {
+        final appWidget = DevicePreview.appBuilder(context, child);
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth > 500 && !DevicePreview.isEnabled(context)) {
+              return Container(
+                color: const Color(0xFF0F172A), // Slate dark background
+                child: Center(
+                  child: Container(
+                    constraints: const BoxConstraints(maxWidth: 480),
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.4),
+                          blurRadius: 24,
+                          spreadRadius: 4,
+                        ),
+                      ],
+                    ),
+                    child: ClipRect(child: appWidget),
+                  ),
+                ),
+              );
+            }
+            return appWidget;
+          },
+        );
+      },
       title: 'SatuTani',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
