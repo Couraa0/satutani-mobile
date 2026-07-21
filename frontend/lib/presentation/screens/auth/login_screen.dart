@@ -38,6 +38,16 @@ class _LoginScreenState extends State<LoginScreen> {
       );
       return;
     }
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Format email tidak valid. Gunakan format contoh: petani@gmail.com'),
+          backgroundColor: AppColors.danger,
+        ),
+      );
+      return;
+    }
 
     setState(() => _loading = true);
     try {

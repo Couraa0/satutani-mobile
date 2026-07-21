@@ -22,6 +22,7 @@ import 'presentation/screens/checkout/checkout_screen.dart';
 import 'presentation/screens/orders/orders_screen.dart';
 import 'presentation/screens/orders/order_tracking_screen.dart';
 import 'presentation/screens/chat/chat_screen.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:device_preview/device_preview.dart';
 
 void main() async {
@@ -36,9 +37,11 @@ void main() async {
   }
 
   runApp(
-    DevicePreview(
-      enabled: true,
-      builder: (context) => const SatuTaniApp(),
+    ProviderScope(
+      child: DevicePreview(
+        enabled: true,
+        builder: (context) => const SatuTaniApp(),
+      ),
     ),
   );
 }

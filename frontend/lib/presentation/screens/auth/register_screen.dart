@@ -57,6 +57,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
       return;
     }
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    if (!emailRegex.hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Format email tidak valid. Gunakan format contoh: petani@gmail.com'),
+          backgroundColor: Color(0xFFD32F2F),
+        ),
+      );
+      return;
+    }
     if (pass.length < 6) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
