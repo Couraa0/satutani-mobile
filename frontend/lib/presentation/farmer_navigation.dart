@@ -32,14 +32,11 @@ class _FarmerNavigationState extends State<FarmerNavigation> {
         children: [
           IndexedStack(index: _idx, children: _screens),
 
-          // Central Floating Voice Hub (Voice-First Microphone Assistant)
+          // Floating Voice Assistant Hub in Bottom Right Corner
           const Positioned(
             bottom: 24,
-            right: 0,
-            left: 0,
-            child: Center(
-              child: FloatingVoiceHub(),
-            ),
+            right: 16,
+            child: FloatingVoiceHub(),
           ),
         ],
       ),
@@ -48,7 +45,7 @@ class _FarmerNavigationState extends State<FarmerNavigation> {
           color: AppColors.surface,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 20,
               offset: const Offset(0, -5),
             ),
@@ -57,9 +54,9 @@ class _FarmerNavigationState extends State<FarmerNavigation> {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _NavItem(
                   icon: Icons.home_outlined,
@@ -77,7 +74,6 @@ class _FarmerNavigationState extends State<FarmerNavigation> {
                   currentIndex: _idx,
                   onTap: (i) => setState(() => _idx = i),
                 ),
-                const SizedBox(width: 48), // Center spacing for Floating Voice Hub
                 _NavItem(
                   icon: Icons.receipt_long_outlined,
                   activeIcon: Icons.receipt_long_rounded,
@@ -91,6 +87,14 @@ class _FarmerNavigationState extends State<FarmerNavigation> {
                   activeIcon: Icons.account_balance_wallet_rounded,
                   label: 'Dompet',
                   index: 3,
+                  currentIndex: _idx,
+                  onTap: (i) => setState(() => _idx = i),
+                ),
+                _NavItem(
+                  icon: Icons.person_outline_rounded,
+                  activeIcon: Icons.person_rounded,
+                  label: 'Profil',
+                  index: 4,
                   currentIndex: _idx,
                   onTap: (i) => setState(() => _idx = i),
                 ),
@@ -129,7 +133,7 @@ class _NavItem extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 250),
         curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isActive ? 14 : 10, vertical: 8),
+        padding: EdgeInsets.symmetric(horizontal: isActive ? 10 : 8, vertical: 8),
         decoration: BoxDecoration(
           color: isActive ? AppColors.primaryLight : Colors.transparent,
           borderRadius: BorderRadius.circular(20),
@@ -143,11 +147,11 @@ class _NavItem extends StatelessWidget {
               size: 22,
             ),
             if (isActive) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Text(
                 label,
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
                   color: AppColors.primary,
                 ),
