@@ -60,6 +60,7 @@ class _FarmerProductsScreenState extends State<FarmerProductsScreen> {
         label: const Text('Tambah Produk',
             style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
       ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
       body: Column(
         children: [
           // Filter chips
