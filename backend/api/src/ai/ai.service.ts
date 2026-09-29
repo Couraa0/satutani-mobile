@@ -80,4 +80,48 @@ export class AiService {
       };
     }
   }
+
+  /**
+   * Generate TTS audio via ElevenLabs API
+   */
+  async generateTts(text: string): Promise<Buffer> {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    const voiceId = process.env.ELEVENLABS_VOICE_ID || 'pFZP5JQG7iQjIQuC4Bku'; // default
+    const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5';
+    
+    if (!apiKey) {
+      throw new HttpException(
+        'ElevenLabs API key is not configured.',
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+    
+    try {
+      const response = await axios.post(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
+        {
+          text,
+          model_id: modelId,
+          voice_settings: {
+            stability: 0.5,
+            similarity_boost: 0.75,
+          },
+        },
+        {
+          headers: {
+            'xi-api-key': apiKey,
+            'Content-Type': 'application/json',
+          },
+          responseType: 'arraybuffer', // Important to get raw binary data
+        },
+      );
+      
+      return Buffer.from(response.data);
+    } catch (err: any) {
+      throw new HttpException(
+        err.response?.data?.detail?.message || 'Failed to generate speech with ElevenLabs',
+        HttpStatus.BAD_GATEWAY,
+      );
+    }
+  }
 }

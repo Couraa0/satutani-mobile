@@ -6,12 +6,15 @@ import {
   HttpStatus,
   Post,
   Request,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 import { AiService } from './ai.service';
 import { AuthGuard } from '../auth/auth.guard';
 import { FarmerGuard } from '../auth/farmer.guard';
+import type { Response } from 'express';
 
 class ChatDto {
   @IsString()
@@ -59,5 +62,29 @@ export class AiController {
   @Get('health')
   async health() {
     return this.aiService.healthCheck();
+  }
+
+  /**
+   * POST /api/ai/tts
+   * Generate text-to-speech using ElevenLabs (Proxy)
+   */
+  @Post('tts')
+  @HttpCode(HttpStatus.OK)
+  async generateTts(
+    @Body('text') text: string,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!text) {
+      return { error: 'Text is required' };
+    }
+    
+    const audioBuffer = await this.aiService.generateTts(text);
+    
+    res.set({
+      'Content-Type': 'audio/mpeg',
+      'Content-Length': audioBuffer.length,
+    });
+    
+    return new StreamableFile(audioBuffer);
   }
 }

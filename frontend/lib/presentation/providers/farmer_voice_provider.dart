@@ -1,7 +1,10 @@
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../core/services/voice_ai_service.dart';
+import '../../core/services/elevenlabs_tts_service.dart';
 import '../../core/services/product_service.dart';
 import '../../core/services/order_service.dart';
 import '../../data/models/product_model.dart';
@@ -60,6 +63,7 @@ class FarmerVoiceState {
 class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
   final FlutterTts _flutterTts = FlutterTts();
   final stt.SpeechToText _speech = stt.SpeechToText();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isProcessingCommand = false;
 
   FarmerVoiceNotifier() : super(FarmerVoiceState()) {
@@ -69,6 +73,7 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
   void _initAudioServices() async {
     try {
+      // Configure flutter_tts as fallback
       await _flutterTts.setLanguage("id-ID");
       await _flutterTts.setSpeechRate(0.45);
       await _flutterTts.setPitch(1.0);
@@ -76,6 +81,16 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
         _isProcessingCommand = false;
         if (mounted && state.voiceState == VoiceState.speaking) {
           state = state.copyWith(voiceState: VoiceState.idle);
+        }
+      });
+
+      // Listen for ElevenLabs audio player completion
+      _audioPlayer.playerStateStream.listen((playerState) {
+        if (playerState.processingState == ProcessingState.completed) {
+          _isProcessingCommand = false;
+          if (mounted && state.voiceState == VoiceState.speaking) {
+            state = state.copyWith(voiceState: VoiceState.idle);
+          }
         }
       });
     } catch (_) {}
@@ -228,11 +243,11 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       notificationMessage: result.success ? "✅ Aksi Suara Berhasil Dieksekusi" : "❌ Gagal Mengeksekusi Aksi",
     );
 
-    // Speak audio voice response out loud via TTS
-    _speakAudioResponse(result.speechResponse);
+    // Speak audio voice response — try ElevenLabs first, fallback to device TTS
+    await _speakWithElevenLabsOrFallback(result.speechResponse);
 
     // Fallback transition back to idle after speech completes
-    Future.delayed(const Duration(seconds: 5), () {
+    Future.delayed(const Duration(seconds: 12), () {
       if (mounted && state.voiceState == VoiceState.speaking) {
         _isProcessingCommand = false;
         state = state.copyWith(voiceState: VoiceState.idle);
@@ -240,14 +255,46 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     });
   }
 
-  /// Speak audio response using Text-to-Speech
-  void _speakAudioResponse(String responseText) async {
+  /// Try ElevenLabs TTS first for natural voice; fall back to flutter_tts if unavailable
+  Future<void> _speakWithElevenLabsOrFallback(String responseText) async {
+    final cleanText = _stripMarkdown(responseText);
+    if (cleanText.isEmpty) return;
+
+    try {
+      // Attempt ElevenLabs high-quality TTS via backend proxy
+      final Uint8List? audioBytes = await ElevenLabsTtsService.synthesize(cleanText);
+
+      if (audioBytes != null && audioBytes.isNotEmpty) {
+        // Play the MP3 audio from ElevenLabs
+        await _audioPlayer.stop();
+        final audioSource = _InMemoryAudioSource(audioBytes);
+        await _audioPlayer.setAudioSource(audioSource);
+        await _audioPlayer.play();
+        return; // Success — no need for fallback
+      }
+    } catch (_) {
+      // ElevenLabs failed — fall through to device TTS
+    }
+
+    // Fallback: use device-native TTS (robotic but always available)
+    _speakWithDeviceTts(cleanText);
+  }
+
+  /// Speak using device-native flutter_tts (fallback)
+  void _speakWithDeviceTts(String text) async {
     try {
       await _flutterTts.stop();
-      // Strip markdown symbols for clean speech synthesis
-      final cleanText = responseText.replaceAll(RegExp(r'\*+|_+|#+|-|\`'), '');
-      await _flutterTts.speak(cleanText);
+      await _flutterTts.speak(text);
     } catch (_) {}
+  }
+
+  /// Strip markdown symbols for clean speech synthesis
+  static String _stripMarkdown(String text) {
+    return text
+        .replaceAll(RegExp(r'\*+|_+|#+|-|`'), '')
+        .replaceAll(RegExp(r'\[.*?\]\(.*?\)'), '')
+        .replaceAll(RegExp(r'\n+'), ' ')
+        .trim();
   }
 
   /// Stop listening & speech synthesis
@@ -256,6 +303,7 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     try {
       _speech.stop();
       _flutterTts.stop();
+      _audioPlayer.stop();
     } catch (_) {}
     state = state.copyWith(voiceState: VoiceState.idle);
   }
@@ -307,8 +355,31 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     try {
       _speech.stop();
       _flutterTts.stop();
+      _audioPlayer.dispose();
     } catch (_) {}
     super.dispose();
+  }
+}
+
+/// Custom AudioSource that plays audio from in-memory bytes (for ElevenLabs MP3 response)
+class _InMemoryAudioSource extends StreamAudioSource {
+  final Uint8List _audioBytes;
+
+  _InMemoryAudioSource(this._audioBytes);
+
+  @override
+  Future<StreamAudioResponse> request([int? start, int? end]) async {
+    final effectiveStart = start ?? 0;
+    final effectiveEnd = end ?? _audioBytes.length;
+    return StreamAudioResponse(
+      sourceLength: _audioBytes.length,
+      contentLength: effectiveEnd - effectiveStart,
+      offset: effectiveStart,
+      stream: Stream.value(
+        _audioBytes.sublist(effectiveStart, effectiveEnd),
+      ),
+      contentType: 'audio/mpeg',
+    );
   }
 }
 
