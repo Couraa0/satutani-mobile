@@ -70,11 +70,11 @@ URL: https://supabase.com/dashboard → pilih project SatuTani_Mobile
 2. **Authentication → URL Configuration**
    - Site URL:
      ```
-     https://satutani-mobile.vercel.app
+     https://satutani.my.id
      ```
    - Redirect URLs → Add:
      ```
-     https://satutani-mobile.vercel.app/**
+     https://satutani.my.id/**
      ```
    - Klik **Save**
 
@@ -97,7 +97,7 @@ Setelah save → **Deployments → titik tiga → Redeploy**
 
 ## 4. Verifikasi
 
-Setelah redeploy selesai, buka https://satutani-mobile.vercel.app dan:
+Setelah redeploy selesai, buka https://satutani.my.id dan:
 - [ ] App terbuka tanpa error
 - [ ] Tombol Google di login screen bisa diklik dan redirect ke Google
 - [ ] Setelah login Google → masuk ke home screen
