@@ -1,5 +1,5 @@
 class ApiEndpoints {
-  static const String baseUrl = 'https://satutani.vercel.app/api';
+  static const String baseUrl = 'https://api.satutani.my.id/api';
 
   // Products
   static const String products = '/products';
