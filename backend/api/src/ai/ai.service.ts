@@ -87,7 +87,7 @@ export class AiService {
   async generateTts(text: string): Promise<Buffer> {
     const apiKey = process.env.ELEVENLABS_API_KEY;
     const voiceId = process.env.ELEVENLABS_VOICE_ID || 'pFZP5JQG7iQjIQuC4Bku'; // default
-    const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_flash_v2_5';
+    const modelId = process.env.ELEVENLABS_MODEL_ID || 'eleven_multilingual_v2';
     
     if (!apiKey) {
       throw new HttpException(
