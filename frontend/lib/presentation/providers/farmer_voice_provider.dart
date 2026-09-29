@@ -81,6 +81,35 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     } catch (_) {}
   }
 
+  /// Clean & deduplicate speech text to prevent concatenated/doubled partial STT outputs
+  static String deduplicateSpeechText(String text) {
+    if (text.isEmpty) return text;
+    String cleaned = text.trim();
+
+    // Split by capital letter boundaries that indicate concatenated partial STT results
+    // e.g. "BerapaBerapa hargaBerapa harga bawang..." -> ["Berapa", "Berapa harga", "Berapa harga bawang", ...]
+    final segments = cleaned.split(RegExp(r'(?<=[a-zA-Z0-9])(?=[A-Z][a-z])'));
+
+    if (segments.isNotEmpty) {
+      // Pick the last segment which represents the most complete/final partial hypothesis
+      String lastSegment = segments.last.trim();
+      if (lastSegment.isNotEmpty) {
+        cleaned = lastSegment;
+      }
+    }
+
+    // Remove adjacent duplicate words e.g. "bawang bawang" -> "bawang"
+    final words = cleaned.split(RegExp(r'\s+'));
+    final List<String> deduplicatedWords = [];
+    for (final w in words) {
+      if (deduplicatedWords.isEmpty || deduplicatedWords.last.toLowerCase() != w.toLowerCase()) {
+        deduplicatedWords.add(w);
+      }
+    }
+
+    return deduplicatedWords.join(' ');
+  }
+
   /// Load initial dashboard data (products & orders)
   Future<void> loadDashboardData() async {
     state = state.copyWith(isLoadingData: true);
@@ -138,10 +167,20 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
       if (available) {
         _speech.listen(
-          listenOptions: stt.SpeechListenOptions(localeId: 'id_ID'),
+          listenOptions: stt.SpeechListenOptions(
+            localeId: 'id_ID',
+            cancelOnError: true,
+            partialResults: true,
+            listenMode: stt.ListenMode.confirmation,
+          ),
+          pauseFor: const Duration(seconds: 2),
+          listenFor: const Duration(seconds: 15),
           onResult: (result) {
             if (result.recognizedWords.isNotEmpty) {
-              state = state.copyWith(recognizedText: result.recognizedWords);
+              final cleaned = deduplicateSpeechText(result.recognizedWords);
+              if (cleaned.isNotEmpty) {
+                state = state.copyWith(recognizedText: cleaned);
+              }
             }
           },
         );
@@ -156,9 +195,11 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     if (_isProcessingCommand) return;
     _isProcessingCommand = true;
 
+    final cleanedSpeech = deduplicateSpeechText(rawSpeech);
+
     state = state.copyWith(
       voiceState: VoiceState.processing,
-      recognizedText: rawSpeech,
+      recognizedText: cleanedSpeech,
       speechResponse: 'Menganalisis maksud perintah...',
     );
 
@@ -168,7 +209,7 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
     await Future.delayed(const Duration(milliseconds: 300));
 
-    final result = await VoiceAiService.processVoiceCommand(rawSpeech);
+    final result = await VoiceAiService.processVoiceCommand(cleanedSpeech);
 
     List<ProductModel> updatedProducts = List.from(state.products);
     List<FarmerOrder> updatedOrders = List.from(state.orders);

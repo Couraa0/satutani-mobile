@@ -37,7 +37,8 @@ class VoiceAiService {
   /// - "Tambah cabai merah 25 kg harga 35000"
   /// - "Masukkan 100 kg tomat segar"
   static VoiceIntentResult parseAndExecute(String rawSpeechText) {
-    final text = rawSpeechText.trim();
+    final cleaned = _deduplicateSpeechText(rawSpeechText);
+    final text = cleaned.trim();
     if (text.isEmpty) {
       return VoiceIntentResult(
         type: VoiceIntentType.unknown,
@@ -403,6 +404,29 @@ class VoiceAiService {
         .trim();
   }
 
+  static String _deduplicateSpeechText(String text) {
+    if (text.isEmpty) return text;
+    String cleaned = text.trim();
+
+    final segments = cleaned.split(RegExp(r'(?<=[a-zA-Z0-9])(?=[A-Z][a-z])'));
+    if (segments.isNotEmpty) {
+      String lastSegment = segments.last.trim();
+      if (lastSegment.isNotEmpty) {
+        cleaned = lastSegment;
+      }
+    }
+
+    final words = cleaned.split(RegExp(r'\s+'));
+    final List<String> deduplicatedWords = [];
+    for (final w in words) {
+      if (deduplicatedWords.isEmpty || deduplicatedWords.last.toLowerCase() != w.toLowerCase()) {
+        deduplicatedWords.add(w);
+      }
+    }
+
+    return deduplicatedWords.join(' ');
+  }
+
   static String _getImageForCategory(String name) {
     final n = name.toLowerCase();
     if (n.contains('wortel')) return 'assets/images/product_wortel.jpg';
@@ -411,3 +435,4 @@ class VoiceAiService {
     return 'assets/images/product_sayur.jpg';
   }
 }
+
