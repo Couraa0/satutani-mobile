@@ -31,7 +31,7 @@ class VoiceIntentResult {
 }
 
 class VoiceAiService {
-  /// Extract product entity from natural language speech in Indonesian
+  /// Extract product entity & intent from natural language speech in Indonesian
   /// Examples:
   /// - "Tolong saya ingin memasukan wortel 70 kg ke produk saya."
   /// - "Tambah cabai merah 25 kg harga 35000"
@@ -53,14 +53,14 @@ class VoiceAiService {
     // 1. Intent: ADD_PRODUCT (Stok & Produk)
     if (_isAddProductIntent(lowerText)) {
       final entities = _extractAddProductEntities(lowerText);
-      final productName = entities['name'] ?? 'Produk Tani';
-      final quantity = entities['stock'] ?? 10;
-      final unit = entities['unit'] ?? 'kg';
-      final price = entities['price'] ?? 15000.0;
-      final category = entities['category'] ?? 'Sayuran';
+      final productName = entities['name'] as String? ?? 'Produk Tani';
+      final quantity = entities['stock'] as int? ?? 10;
+      final unit = entities['unit'] as String? ?? 'kg';
+      final price = (entities['price'] as num?)?.toDouble() ?? 15000.0;
+      final category = entities['category'] as String? ?? 'Sayuran';
 
       final String spokenResponse =
-          "Siap Pak, $productName sebanyak $quantity $unit berhasil ditambahkan ke daftar produk Anda.";
+          "Siap Pak, $productName sebanyak $quantity $unit dengan harga Rp ${price.toInt()} berhasil ditambahkan ke daftar produk Anda.";
 
       final productData = {
         'name': productName,
@@ -92,7 +92,7 @@ class VoiceAiService {
 
       String spokenResponse = "Menampilkan riwayat penjualan Anda.";
       if (product.isNotEmpty) {
-        spokenResponse = "Hasil analisis penjualan untuk $product: total 180 kg laku terjuang minggu ini.";
+        spokenResponse = "Hasil analisis penjualan untuk $product: total 180 kg laku terjual minggu ini.";
       } else if (filter == 'minggu_ini') {
         spokenResponse = "Ringkasan minggu ini: 12 pesanan selesai dengan total transaksi Rp 3.450.000.";
       } else {
@@ -108,7 +108,7 @@ class VoiceAiService {
       );
     }
 
-    // 3. Intent: GENERAL_ADVISORY (Pertanyaan AI Umum / Konsultasi)
+    // 3. Intent: GENERAL_ADVISORY (Pertanyaan AI Umum / Konsultasi Pertanian)
     return VoiceIntentResult(
       type: VoiceIntentType.generalAdvisory,
       originalText: rawSpeechText,
@@ -118,13 +118,12 @@ class VoiceAiService {
     );
   }
 
-  /// Execute Intent against Real Backend APIs
+  /// Execute Intent against Real Backend APIs (FastAPI Gemini 3.8 Flash Lite TTS service)
   static Future<VoiceIntentResult> processVoiceCommand(String speechText) async {
     final result = parseAndExecute(speechText);
 
     try {
       if (result.type == VoiceIntentType.addProduct && result.actionPayload != null) {
-        // Call Backend POST /api/v1/farmer/products
         try {
           final createdProduct = await ProductService.createProduct(
             result.actionPayload as Map<String, dynamic>,
@@ -137,8 +136,8 @@ class VoiceAiService {
             actionPayload: createdProduct,
             success: true,
           );
-        } catch (e) {
-          // In case backend endpoint offline/fallback, generate model offline for smooth demo
+        } catch (_) {
+          // Fallback product creation for offline/demo resilience
           final map = result.actionPayload as Map<String, dynamic>;
           final fallbackProduct = ProductModel(
             id: 'v_${DateTime.now().millisecondsSinceEpoch}',
@@ -164,17 +163,19 @@ class VoiceAiService {
         }
       } else if (result.type == VoiceIntentType.generalAdvisory) {
         try {
+          // Query Python FastAPI service backed by OpenRouter google/gemini-3.8-flash-lite-tts
           final aiRes = await AiChatService.sendMessage(message: speechText);
+          final cleanReply = _cleanMarkdownForSpeech(aiRes.reply);
           return VoiceIntentResult(
             type: result.type,
             originalText: result.originalText,
             entities: result.entities,
-            speechResponse: aiRes.reply.replaceAll('*', ''),
+            speechResponse: cleanReply,
             actionPayload: aiRes,
             success: true,
           );
         } catch (_) {
-          // Keep advisory speech response
+          // Keep quick advisory speech response if offline
           return result;
         }
       }
@@ -195,12 +196,34 @@ class VoiceAiService {
   // ── Helper parsing rules ──────────────────────────────────────────────────
 
   static bool _isAddProductIntent(String text) {
-    final keywords = ['masukan', 'masukkan', 'tambah', 'tambahkan', 'jual', 'input', 'buat produk', 'simpan produk'];
+    final keywords = [
+      'masukan',
+      'masukkan',
+      'memasukan',
+      'memasukkan',
+      'tambah',
+      'tambahkan',
+      'jual',
+      'input',
+      'buat produk',
+      'simpan produk',
+      'daftarkan'
+    ];
     return keywords.any((k) => text.contains(k));
   }
 
   static bool _isCheckOrdersIntent(String text) {
-    final keywords = ['cek', 'riwayat', 'penjualan', 'pesanan', 'transaksi', 'laku', 'omset', 'pendapatan', 'histori'];
+    final keywords = [
+      'cek',
+      'riwayat',
+      'penjualan',
+      'pesanan',
+      'transaksi',
+      'laku',
+      'omset',
+      'pendapatan',
+      'histori'
+    ];
     return keywords.any((k) => text.contains(k));
   }
 
@@ -216,9 +239,17 @@ class VoiceAiService {
       name = 'Wortel Segar Lembang';
       price = 12000;
       category = 'Sayuran';
-    } else if (text.contains('cabai') || text.contains('cabe')) {
+    } else if (text.contains('cabai merah') || text.contains('cabe merah')) {
       name = 'Cabai Merah Keriting';
       price = 38000;
+      category = 'Cabai';
+    } else if (text.contains('cabai rawit') || text.contains('cabe rawit')) {
+      name = 'Cabai Rawit Merah';
+      price = 45000;
+      category = 'Cabai';
+    } else if (text.contains('cabai') || text.contains('cabe')) {
+      name = 'Cabai Merah Fresh';
+      price = 35000;
       category = 'Cabai';
     } else if (text.contains('tomat')) {
       name = 'Tomat Organik Panen';
@@ -228,36 +259,64 @@ class VoiceAiService {
       name = 'Kentang Dieng Super';
       price = 18000;
       category = 'Umbian';
-    } else if (text.contains('bawang')) {
+    } else if (text.contains('bawang merah')) {
       name = 'Bawang Merah Brebes';
       price = 28000;
+      category = 'Bumbu';
+    } else if (text.contains('bawang')) {
+      name = 'Bawang Merah Panen';
+      price = 25000;
       category = 'Bumbu';
     } else if (text.contains('jagung')) {
       name = 'Jagung Manis Panen';
       price = 9000;
       category = 'Sayuran';
+    } else if (text.contains('kangkung')) {
+      name = 'Kangkung Hidroponik';
+      price = 5000;
+      category = 'Sayuran';
+    } else if (text.contains('bayam')) {
+      name = 'Bayam Hijau Segar';
+      price = 6000;
+      category = 'Sayuran';
+    } else if (text.contains('terong')) {
+      name = 'Terong Ungu Super';
+      price = 8000;
+      category = 'Sayuran';
     } else {
-      // General name extraction fallback
       final words = text.split(' ');
       for (int i = 0; i < words.length; i++) {
-        if (['tambah', 'masukkan', 'masukan', 'jual'].contains(words[i]) && i + 1 < words.length) {
+        if (['tambah', 'masukkan', 'masukan', 'memasukan', 'memasukkan', 'jual'].contains(words[i]) &&
+            i + 1 < words.length) {
           name = words[i + 1].toUpperCase();
           break;
         }
       }
     }
 
-    // Number extraction for stock/quantity
-    final numReg = RegExp(r'(\d+)\s*(kg|kilo|ton|ikat|karung|gram)?');
-    final match = numReg.firstMatch(text);
-    if (match != null) {
-      final numStr = match.group(1);
-      if (numStr != null) {
-        stock = int.tryParse(numStr) ?? stock;
-      }
-      final unitStr = match.group(2);
-      if (unitStr != null) {
-        unit = unitStr == 'kilo' ? 'kg' : unitStr;
+    // Number extraction for stock/quantity & spoken number conversion
+    final parsedStock = _extractSpokenNumber(text);
+    if (parsedStock > 0) {
+      stock = parsedStock;
+    }
+
+    // Unit extraction
+    if (text.contains('ton')) unit = 'ton';
+    else if (text.contains('ikat')) unit = 'ikat';
+    else if (text.contains('karung')) unit = 'karung';
+    else if (text.contains('gram')) unit = 'gram';
+    else unit = 'kg';
+
+    // Price extraction from text e.g. "harga 35000" or "harga 35 ribu" or "35rb"
+    final priceMatch = RegExp(r'harga\s*(\d+|\w+)\s*(ribu|rb)?').firstMatch(text);
+    if (priceMatch != null) {
+      final valStr = priceMatch.group(1);
+      final multiplier = priceMatch.group(2) != null ? 1000 : 1;
+      if (valStr != null) {
+        final parsedVal = int.tryParse(valStr);
+        if (parsedVal != null) {
+          price = (parsedVal * multiplier).toDouble();
+        }
       }
     }
 
@@ -268,6 +327,38 @@ class VoiceAiService {
       'price': price,
       'category': category,
     };
+  }
+
+  static int _extractSpokenNumber(String text) {
+    // Digits match e.g. 70 kg, 25 kilo
+    final numReg = RegExp(r'(\d+)\s*(kg|kilo|ton|ikat|karung|gram)?');
+    final match = numReg.firstMatch(text);
+    if (match != null) {
+      final numStr = match.group(1);
+      if (numStr != null) {
+        final n = int.tryParse(numStr);
+        if (n != null) return n;
+      }
+    }
+
+    // Spoken Indonesian numbers mapping
+    final numberMap = {
+      'sepoloh': 10, 'sepuluh': 10,
+      'dua puluh': 20, 'dua puluh lima': 25,
+      'tiga puluh': 30, 'tiga puluh lima': 35,
+      'empat puluh': 40, 'lima puluh': 50,
+      'enam puluh': 60, 'tujuh puluh': 70,
+      'delapan puluh': 80, 'sembilan puluh': 90,
+      'seratus': 100, 'dua ratus': 200, 'lima ratus': 500
+    };
+
+    for (final entry in numberMap.entries) {
+      if (text.contains(entry.key)) {
+        return entry.value;
+      }
+    }
+
+    return 0;
   }
 
   static Map<String, dynamic> _extractCheckOrdersEntities(String text) {
@@ -299,9 +390,17 @@ class VoiceAiService {
       return "Prakiraan cuaca wilayah Anda minggu ini: intensitas hujan sedang di sore hari. Disarankan pastikan drainase bedengan lancar.";
     }
     if (text.contains('harga') || text.contains('pasar')) {
-      return "Harga pasar hari ini: Cabai Merah Rp 38.000/kg (stabil), Wortel Rp 12.000/kg (naik 5%), dan Tomat Rp 15.000/kg.";
+      return "Harga pasar hari ini: Cabai Merah Rp 38.000 per kg, Wortel Rp 12.000 per kg, dan Tomat Rp 15.000 per kg.";
     }
     return "SatuTani AI siap membantu! Anda dapat menanyakan seputar saran budidaya, prediksi harga, atau jadwal tanam optimal.";
+  }
+
+  static String _cleanMarkdownForSpeech(String markdown) {
+    return markdown
+        .replaceAll(RegExp(r'\*+|_+|#+|-|\`'), '')
+        .replaceAll(RegExp(r'\[.*?\]\(.*?\)' ), '')
+        .replaceAll(RegExp(r'\n+'), ' ')
+        .trim();
   }
 
   static String _getImageForCategory(String name) {

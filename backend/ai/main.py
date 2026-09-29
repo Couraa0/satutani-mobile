@@ -31,7 +31,11 @@ from pydantic import BaseModel
 # ── LangChain ────────────────────────────────────────────────────────────────
 from langchain_core.tools import tool
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_groq import ChatGroq
+from langchain_openai import ChatOpenAI
+try:
+    from langchain_groq import ChatGroq
+except ImportError:
+    ChatGroq = None
 from langchain.agents import create_openai_tools_agent, AgentExecutor
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -40,8 +44,10 @@ logger = logging.getLogger("satutani-ai")
 
 # ── Load env ──────────────────────────────────────────────────────────────────
 load_dotenv()
-GROQ_API_KEY = os.getenv("GROQ_API_KEY", "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")
-os.environ["GROQ_API_KEY"] = GROQ_API_KEY
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+LLM_MODEL = os.getenv("LLM_MODEL", "google/gemini-3.8-flash-lite-tts")
+if OPENROUTER_API_KEY:
+    os.environ["OPENROUTER_API_KEY"] = OPENROUTER_API_KEY
 
 # =============================================================================
 # KNOWLEDGE BASE KOMODITAS (FAO + Kementan)
@@ -454,11 +460,29 @@ SATUTANI_TOOLS = [
 
 
 def build_agent(wilayah_names: list):
-    llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
-        temperature=0.3,
-        max_tokens=2048,
-    )
+    model_name = os.getenv("LLM_MODEL", "google/gemini-3.8-flash-lite-tts")
+    api_key = os.getenv("OPENROUTER_API_KEY", "")
+
+    if api_key.startswith("sk-or-") or "gemini" in model_name.lower() or not ChatGroq:
+        logger.info(f"Menggunakan OpenRouter ChatOpenAI dengan model {model_name}")
+        llm = ChatOpenAI(
+            model=model_name,
+            openai_api_key=api_key,
+            openai_api_base="https://openrouter.ai/api/v1",
+            temperature=0.3,
+            max_tokens=2048,
+            default_headers={
+                "HTTP-Referer": "https://satutani.app",
+                "X-Title": "SatuTani AI",
+            }
+        )
+    else:
+        logger.info(f"Menggunakan ChatGroq dengan model {model_name}")
+        llm = ChatGroq(
+            model=model_name,
+            temperature=0.3,
+            max_tokens=2048,
+        )
     prompt = ChatPromptTemplate.from_messages([
         ("system", """Kamu adalah SatuTani Assistant, teman cerdas petani Indonesia yang paham pertanian.
 

@@ -7,7 +7,7 @@ Python FastAPI microservice yang menjalankan LangChain ReAct Agent untuk rekomen
 NestJS (port 4000) ──HTTP──▶ FastAPI AI Service (port 8000)
                                       │
                               LangChain ReAct Agent
-                              (llama-3.3-70b via Groq)
+                       (google/gemini-3.8-flash-lite-tts via OpenRouter)
                                       │
                     ┌─────────────────┼─────────────────┐
                BMKG API          Gaussian           ChromaDB
@@ -94,7 +94,7 @@ Service akan berjalan di `http://localhost:8000`.
 ## Notes
 - Service melakukan startup init (~1-3 detik) untuk memuat data knowledge base dan cuaca historis.
 - Jika API BMKG tidak tersedia, sistem akan otomatis *fallback* ke data klimatologi historis.
-- Model LLM: `llama-3.3-70b-versatile` via Groq Cloud (API Key diatur di `.env`).
+- Model LLM: `google/gemini-3.8-flash-lite-tts` via OpenRouter (API Key diatur di `.env`).
 
 ## ☁️ Deployment
 Aplikasi AI ini sudah dikonfigurasi menggunakan GitHub Actions untuk di-deploy ke **Microsoft Azure App Service** (Linux, Python 3.11). 

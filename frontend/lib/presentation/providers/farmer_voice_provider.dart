@@ -60,6 +60,7 @@ class FarmerVoiceState {
 class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
   final FlutterTts _flutterTts = FlutterTts();
   final stt.SpeechToText _speech = stt.SpeechToText();
+  bool _isProcessingCommand = false;
 
   FarmerVoiceNotifier() : super(FarmerVoiceState()) {
     _initAudioServices();
@@ -69,8 +70,14 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
   void _initAudioServices() async {
     try {
       await _flutterTts.setLanguage("id-ID");
-      await _flutterTts.setSpeechRate(0.5);
+      await _flutterTts.setSpeechRate(0.45);
       await _flutterTts.setPitch(1.0);
+      _flutterTts.setCompletionHandler(() {
+        _isProcessingCommand = false;
+        if (mounted && state.voiceState == VoiceState.speaking) {
+          state = state.copyWith(voiceState: VoiceState.idle);
+        }
+      });
     } catch (_) {}
   }
 
@@ -107,6 +114,7 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
   /// Start Listening to Voice Input from Microphone (STT)
   void startListening() async {
+    _isProcessingCommand = false;
     state = state.copyWith(
       voiceState: VoiceState.listening,
       recognizedText: 'Mendengarkan suara Anda...',
@@ -117,7 +125,8 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     try {
       bool available = await _speech.initialize(
         onStatus: (status) {
-          if ((status == 'done' || status == 'notListening') &&
+          if (!_isProcessingCommand &&
+              (status == 'done' || status == 'notListening') &&
               state.voiceState == VoiceState.listening &&
               state.recognizedText.isNotEmpty &&
               state.recognizedText != 'Mendengarkan suara Anda...') {
@@ -144,9 +153,8 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
   /// Process Voice Command & Speak Response Out Loud (TTS Audio Feedback)
   Future<void> processSpeech(String rawSpeech) async {
-    try {
-      await _speech.stop();
-    } catch (_) {}
+    if (_isProcessingCommand) return;
+    _isProcessingCommand = true;
 
     state = state.copyWith(
       voiceState: VoiceState.processing,
@@ -154,7 +162,11 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       speechResponse: 'Menganalisis maksud perintah...',
     );
 
-    await Future.delayed(const Duration(milliseconds: 600));
+    try {
+      await _speech.stop();
+    } catch (_) {}
+
+    await Future.delayed(const Duration(milliseconds: 300));
 
     final result = await VoiceAiService.processVoiceCommand(rawSpeech);
 
@@ -178,9 +190,10 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     // Speak audio voice response out loud via TTS
     _speakAudioResponse(result.speechResponse);
 
-    // Transition back to idle after speech completes
-    Future.delayed(const Duration(seconds: 4), () {
+    // Fallback transition back to idle after speech completes
+    Future.delayed(const Duration(seconds: 5), () {
       if (mounted && state.voiceState == VoiceState.speaking) {
+        _isProcessingCommand = false;
         state = state.copyWith(voiceState: VoiceState.idle);
       }
     });
@@ -190,12 +203,15 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
   void _speakAudioResponse(String responseText) async {
     try {
       await _flutterTts.stop();
-      await _flutterTts.speak(responseText);
+      // Strip markdown symbols for clean speech synthesis
+      final cleanText = responseText.replaceAll(RegExp(r'\*+|_+|#+|-|\`'), '');
+      await _flutterTts.speak(cleanText);
     } catch (_) {}
   }
 
   /// Stop listening & speech synthesis
   void stopListening() {
+    _isProcessingCommand = false;
     try {
       _speech.stop();
       _flutterTts.stop();
@@ -246,6 +262,7 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
   @override
   void dispose() {
+    _isProcessingCommand = false;
     try {
       _speech.stop();
       _flutterTts.stop();
