@@ -119,7 +119,27 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     if (text.isEmpty) return text;
     String cleaned = text.trim();
 
-    // Split by capital letter boundaries that indicate concatenated partial STT results
+    // 1. Mobile Web STT accumulator fix:
+    // Web Speech API on mobile often appends streaming hypotheses without clearing prior interim chunks
+    // e.g. "masukkanmasukkanmasukkan wortelmasukkan wortel sebanyak...masukkan wortel sebanyak 70 kilo"
+    final firstWordMatch = RegExp(r'^[a-zA-Z0-9]+').firstMatch(cleaned);
+    if (firstWordMatch != null && firstWordMatch.group(0)!.length >= 2) {
+      final firstWord = firstWordMatch.group(0)!;
+      final matches = RegExp(RegExp.escape(firstWord), caseSensitive: false)
+          .allMatches(cleaned)
+          .toList();
+
+      if (matches.length > 1) {
+        // The last occurrence of the sentence-starting token marks the final and most complete hypothesis
+        final lastStart = matches.last.start;
+        final candidate = cleaned.substring(lastStart).trim();
+        if (candidate.isNotEmpty) {
+          cleaned = candidate;
+        }
+      }
+    }
+
+    // 2. Split by capital letter boundaries that indicate concatenated partial STT results
     // e.g. "BerapaBerapa hargaBerapa harga bawang..." -> ["Berapa", "Berapa harga", "Berapa harga bawang", ...]
     final segments = cleaned.split(RegExp(r'(?<=[a-zA-Z0-9])(?=[A-Z][a-z])'));
 
@@ -131,12 +151,13 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       }
     }
 
-    // Remove adjacent duplicate words e.g. "bawang bawang" -> "bawang"
+    // 3. Remove adjacent duplicate words e.g. "bawang bawang" -> "bawang"
     final words = cleaned.split(RegExp(r'\s+'));
     final List<String> deduplicatedWords = [];
     for (final w in words) {
+      if (w.trim().isEmpty) continue;
       if (deduplicatedWords.isEmpty || deduplicatedWords.last.toLowerCase() != w.toLowerCase()) {
-        deduplicatedWords.add(w);
+        deduplicatedWords.add(w.trim());
       }
     }
 
