@@ -30,13 +30,12 @@ from pydantic import BaseModel
 
 # ── LangChain ────────────────────────────────────────────────────────────────
 from langchain_core.tools import tool
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import SystemMessage, HumanMessage, ToolMessage
 from langchain_openai import ChatOpenAI
 try:
     from langchain_groq import ChatGroq
 except ImportError:
     ChatGroq = None
-from langchain.agents import create_openai_tools_agent, AgentExecutor
 
 # ── Logging ───────────────────────────────────────────────────────────────────
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -459,15 +458,67 @@ SATUTANI_TOOLS = [
 ]
 
 
-def build_agent(wilayah_names: list):
-    model_name = os.getenv("LLM_MODEL", "google/gemini-3.8-flash-lite-tts")
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
+class SatuTaniAgentRunner:
+    def __init__(self, llm, tools, system_prompt: str):
+        self.llm = llm
+        self.tools = tools
+        self.tools_map = {t.name: t for t in tools}
+        self.llm_with_tools = self.llm.bind_tools(tools)
+        self.system_prompt = system_prompt
 
-    if api_key.startswith("sk-or-") or "gemini" in model_name.lower() or not ChatGroq:
-        logger.info(f"Menggunakan OpenRouter ChatOpenAI dengan model {model_name}")
+    def invoke(self, input_dict: dict) -> dict:
+        user_input = input_dict.get("input", "")
+        messages = [
+            SystemMessage(content=self.system_prompt),
+            HumanMessage(content=user_input)
+        ]
+
+        for _ in range(5):
+            ai_msg = self.llm_with_tools.invoke(messages)
+            messages.append(ai_msg)
+
+            if not getattr(ai_msg, "tool_calls", None):
+                return {"output": ai_msg.content}
+
+            for tool_call in ai_msg.tool_calls:
+                tool_name = tool_call["name"]
+                tool_args = tool_call.get("args", {})
+                tool_fn = self.tools_map.get(tool_name)
+                if tool_fn:
+                    try:
+                        tool_res = tool_fn.invoke(tool_args)
+                    except Exception as e:
+                        tool_res = f"Error executing {tool_name}: {e}"
+                else:
+                    tool_res = f"Tool {tool_name} not found"
+
+                messages.append(ToolMessage(content=str(tool_res), tool_call_id=tool_call.get("id", "")))
+
+        return {"output": messages[-1].content if messages else "Maaf, respon tidak dapat dihasilkan."}
+
+
+def build_agent(wilayah_names: list):
+    groq_api_key = os.getenv("GROQ_API_KEY", "")
+    openrouter_api_key = os.getenv("OPENROUTER_API_KEY", "")
+    openai_api_key = os.getenv("OPENAI_API_KEY", "")
+    model_name = os.getenv("LLM_MODEL", "")
+
+    if groq_api_key:
+        model = model_name if (model_name and "gemini" not in model_name.lower()) else "llama-3.3-70b-versatile"
+        logger.info(f"Menggunakan Groq AI API dengan model {model}")
         llm = ChatOpenAI(
-            model=model_name,
-            openai_api_key=api_key,
+            model=model,
+            openai_api_key=groq_api_key,
+            openai_api_base="https://api.groq.com/openai/v1",
+            temperature=0.3,
+            max_tokens=2048,
+        )
+    elif openrouter_api_key:
+        model = model_name or "google/gemini-3.8-flash-lite-tts"
+        logger.info(f"Menggunakan OpenRouter ChatOpenAI dengan model {model}")
+        llm = ChatOpenAI(
+            model=model,
+            openai_api_key=openrouter_api_key,
             openai_api_base="https://openrouter.ai/api/v1",
             temperature=0.3,
             max_tokens=2048,
@@ -476,17 +527,29 @@ def build_agent(wilayah_names: list):
                 "X-Title": "SatuTani AI",
             }
         )
-    else:
-        logger.info(f"Menggunakan ChatGroq dengan model {model_name}")
-        llm = ChatGroq(
-            model=model_name,
+    elif openai_api_key:
+        model = model_name or "gpt-4o-mini"
+        logger.info(f"Menggunakan OpenAI API dengan model {model}")
+        llm = ChatOpenAI(
+            model=model,
+            openai_api_key=openai_api_key,
             temperature=0.3,
             max_tokens=2048,
         )
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", """Kamu adalah SatuTani Assistant, teman cerdas petani Indonesia yang paham pertanian.
+    else:
+        groq_key = os.getenv("GROQ_API_KEY", "")
+        logger.info("Menggunakan GROQ_API_KEY dari environment")
+        llm = ChatOpenAI(
+            model="llama-3.3-70b-versatile",
+            openai_api_key=groq_key,
+            openai_api_base="https://api.groq.com/openai/v1",
+            temperature=0.3,
+            max_tokens=2048,
+        )
 
-Wilayah yang kamu layani: {wilayah_list}
+    system_prompt = f"""Kamu adalah SatuTani Assistant, teman cerdas petani Indonesia yang paham pertanian.
+
+Wilayah yang kamu layani: {', '.join(wilayah_names)}
 
 PRINSIP DASAR:
 - Fokus jawab APA yang ditanya dulu, sampaikan dengan kalimat yang sangat pendek dan sederhana agar mudah dipahami petani.
@@ -497,33 +560,16 @@ PRINSIP DASAR:
 
 ATURAN FORMAT:
 1. Jika ada DAFTAR/LIST (rekomendasi tanaman, harga, jadwal):
-   Gunakan format bullet atau nomor yang rapi. Contoh:
-   🌱 **[Judul singkat]**
-   - 🍅 **Tomat** — Harga: **Rp 8.000/kg** (Tumbuh baik di suhu **22°C**)
-   - 🌽 **Jagung** — Harga: **Rp 4.000/kg** (Panen dalam **75 hari**)
-   
-   💡 **Saran:** [1 kalimat saran aksi konkret]
-
-2. Jika pertanyaan SPESIFIK (estimasi panen, harga 1 komoditas, jadwal tanam):
-   Jawab langsung dengan poin-poin singkat. Gunakan emoji dan bold. Contoh:
-   🌡️ Suhu saat ini: **24°C**
-   💰 Harga **Cabai Merah**: **Rp 35.000/kg**
-   Lalu tambahkan 1 kalimat saran penutup.
-
+   Gunakan format bullet atau nomor yang rapi.
+2. Jika pertanyaan SPESIFIK:
+   Jawab langsung dengan poin-poin singkat dan emoji.
 3. Jika SALAM/UMUM:
-   Balas ramah 1-2 kalimat dengan emoji 👋🌾, lalu tawarkan bantuan spesifik.
+   Balas ramah 1-2 kalimat dengan emoji 👋🌾.
 
 DILARANG:
-- Jangan menggunakan kalimat panjang, formal, atau istilah teknis yang rumit.
-- Jangan ulang pertanyaan petani di jawaban.
 - Jangan bertele-tele.
-"""),
-        ("human", "{input}"),
-        MessagesPlaceholder(variable_name="agent_scratchpad"),
-    ]).partial(wilayah_list=", ".join(wilayah_names))
-
-    agent = create_openai_tools_agent(llm=llm, tools=SATUTANI_TOOLS, prompt=prompt)
-    return AgentExecutor(agent=agent, tools=SATUTANI_TOOLS, verbose=False)
+"""
+    return SatuTaniAgentRunner(llm=llm, tools=SATUTANI_TOOLS, system_prompt=system_prompt)
 
 
 # =============================================================================
