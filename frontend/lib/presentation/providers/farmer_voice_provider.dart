@@ -73,10 +73,28 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
   void _initAudioServices() async {
     try {
-      // Configure flutter_tts as fallback
+      // Configure flutter_tts with Indonesian language & natural cadence
       await _flutterTts.setLanguage("id-ID");
-      await _flutterTts.setSpeechRate(0.45);
+      await _flutterTts.setSpeechRate(0.48);
       await _flutterTts.setPitch(1.0);
+      await _flutterTts.setVolume(1.0);
+
+      // Pick Indonesian voice if available
+      try {
+        final dynamic voices = await _flutterTts.getVoices;
+        if (voices is List) {
+          for (final v in voices) {
+            if (v is Map && (v['locale']?.toString().toLowerCase().contains('id') ?? false)) {
+              await _flutterTts.setVoice({
+                "name": v["name"].toString(),
+                "locale": v["locale"].toString()
+              });
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+
       _flutterTts.setCompletionHandler(() {
         _isProcessingCommand = false;
         if (mounted && state.voiceState == VoiceState.speaking) {
@@ -182,14 +200,15 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
       if (available) {
         _speech.listen(
+          localeId: 'id_ID',
           listenOptions: stt.SpeechListenOptions(
             localeId: 'id_ID',
-            cancelOnError: true,
+            cancelOnError: false,
             partialResults: true,
             listenMode: stt.ListenMode.confirmation,
           ),
-          pauseFor: const Duration(seconds: 2),
-          listenFor: const Duration(seconds: 15),
+          pauseFor: const Duration(seconds: 3),
+          listenFor: const Duration(seconds: 25),
           onResult: (result) {
             if (result.recognizedWords.isNotEmpty) {
               final cleaned = deduplicateSpeechText(result.recognizedWords);
@@ -247,7 +266,7 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     await _speakWithElevenLabsOrFallback(result.speechResponse);
 
     // Fallback transition back to idle after speech completes
-    Future.delayed(const Duration(seconds: 12), () {
+    Future.delayed(const Duration(seconds: 14), () {
       if (mounted && state.voiceState == VoiceState.speaking) {
         _isProcessingCommand = false;
         state = state.copyWith(voiceState: VoiceState.idle);
@@ -276,15 +295,16 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       // ElevenLabs failed — fall through to device TTS
     }
 
-    // Fallback: use device-native TTS (robotic but always available)
+    // Fallback: use device-native TTS with natural Indonesian phonetic normalization
     _speakWithDeviceTts(cleanText);
   }
 
-  /// Speak using device-native flutter_tts (fallback)
+  /// Speak using device-native flutter_tts (fallback with natural phonetic Indonesian)
   void _speakWithDeviceTts(String text) async {
     try {
       await _flutterTts.stop();
-      await _flutterTts.speak(text);
+      final phoneticIndonesian = formatForIndonesianSpeech(text);
+      await _flutterTts.speak(phoneticIndonesian);
     } catch (_) {}
   }
 
@@ -295,6 +315,102 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
         .replaceAll(RegExp(r'\[.*?\]\(.*?\)'), '')
         .replaceAll(RegExp(r'\n+'), ' ')
         .trim();
+  }
+
+  /// Natural Indonesian Phonetic and Number Converter for Smooth Voice Reading
+  static String formatForIndonesianSpeech(String raw) {
+    String text = _stripMarkdown(raw);
+
+    // Convert Currency (e.g. Rp 35.000, Rp 3.450.000) into Indonesian spoken words
+    text = text.replaceAllMapped(RegExp(r'Rp\s*([\d\.]+)'), (match) {
+      final numStr = match.group(1)?.replaceAll('.', '') ?? '0';
+      final n = int.tryParse(numStr);
+      if (n != null) {
+        return '${numberToIndonesianWords(n)} rupiah';
+      }
+      return match.group(0) ?? '';
+    });
+
+    // Convert dates (e.g. 25/10/2026)
+    text = text.replaceAllMapped(RegExp(r'\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b'), (match) {
+      final day = int.tryParse(match.group(1) ?? '1') ?? 1;
+      final month = int.tryParse(match.group(2) ?? '1') ?? 1;
+      final year = int.tryParse(match.group(3) ?? '2026') ?? 2026;
+      final monthNames = [
+        '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
+      final monthStr = (month >= 1 && month <= 12) ? monthNames[month] : 'bulan $month';
+      return 'tanggal ${numberToIndonesianWords(day)} $monthStr tahun ${numberToIndonesianWords(year)}';
+    });
+
+    // Convert decimal numbers (e.g. 0.5 hektar -> setengah hektar)
+    text = text.replaceAll('0.5 hektar', 'setengah hektar');
+    text = text.replaceAll('0,5 hektar', 'setengah hektar');
+    text = text.replaceAllMapped(RegExp(r'\b(\d+)[.,](\d+)\b'), (match) {
+      final whole = int.tryParse(match.group(1) ?? '0') ?? 0;
+      final dec = match.group(2) ?? '0';
+      return '${numberToIndonesianWords(whole)} koma $dec';
+    });
+
+    // Convert common agricultural terms for phonetics
+    text = text.replaceAll('/kg', ' per kilogram');
+    text = text.replaceAll('/ha', ' per hektar');
+    text = text.replaceAll('°C', ' derajat Celsius');
+    text = text.replaceAll('%', ' persen');
+    text = text.replaceAll('kg', ' kilogram');
+    text = text.replaceAll('mm/minggu', ' milimeter per minggu');
+    text = text.replaceAll('±', 'kurang lebih ');
+    text = text.replaceAll('~', 'sekitar ');
+
+    // Normalize spacing
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text;
+  }
+
+  /// Indonesian Number-to-Words ('Terbilang') Engine
+  static String numberToIndonesianWords(int n) {
+    if (n == 0) return 'nol';
+    if (n < 0) return 'minus ${numberToIndonesianWords(-n)}';
+
+    final units = [
+      '', 'satu', 'dua', 'tiga', 'empat', 'lima',
+      'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'
+    ];
+
+    if (n < 12) return units[n];
+    if (n < 20) return '${units[n - 10]} belas';
+    if (n < 100) {
+      final div = n ~/ 10;
+      final rem = n % 10;
+      return '${units[div]} puluh${rem > 0 ? ' ${units[rem]}' : ''}';
+    }
+    if (n < 200) {
+      final rem = n - 100;
+      return 'seratus${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    if (n < 1000) {
+      final div = n ~/ 100;
+      final rem = n % 100;
+      return '${units[div]} ratus${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    if (n < 2000) {
+      final rem = n - 1000;
+      return 'seribu${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    if (n < 1000000) {
+      final div = n ~/ 1000;
+      final rem = n % 1000;
+      return '${numberToIndonesianWords(div)} ribu${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    if (n < 1000000000) {
+      final div = n ~/ 1000000;
+      final rem = n % 1000000;
+      return '${numberToIndonesianWords(div)} juta${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    final div = n ~/ 1000000000;
+    final rem = n % 1000000000;
+    return '${numberToIndonesianWords(div)} miliar${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
   }
 
   /// Stop listening & speech synthesis
