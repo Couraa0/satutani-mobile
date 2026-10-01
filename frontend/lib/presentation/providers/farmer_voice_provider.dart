@@ -199,10 +199,28 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       );
 
       if (available) {
+        // Dynamically find supported Indonesian locale for mobile/web compatibility
+        String targetLocale = 'id-ID';
+        try {
+          final locales = await _speech.locales();
+          for (final loc in locales) {
+            final idLower = loc.localeId.toLowerCase();
+            final nameLower = loc.name.toLowerCase();
+            if (idLower.startsWith('id') ||
+                idLower.startsWith('in') ||
+                nameLower.contains('indonesia')) {
+              targetLocale = loc.localeId;
+              break;
+            }
+          }
+        } catch (_) {
+          targetLocale = 'id-ID';
+        }
+
         _speech.listen(
-          localeId: 'id_ID',
+          localeId: targetLocale,
           listenOptions: stt.SpeechListenOptions(
-            localeId: 'id_ID',
+            localeId: targetLocale,
             cancelOnError: false,
             partialResults: true,
             listenMode: stt.ListenMode.confirmation,
