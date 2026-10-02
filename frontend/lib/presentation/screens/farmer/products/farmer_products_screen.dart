@@ -41,9 +41,6 @@ class _FarmerProductsScreenState extends State<FarmerProductsScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Produk Saya'),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
@@ -468,9 +465,6 @@ class _EditProductScreenState extends State<EditProductScreen> {
       backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Edit Produk'),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
       ),
       body: Form(
         key: _formKey,
