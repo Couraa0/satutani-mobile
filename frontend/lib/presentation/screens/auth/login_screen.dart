@@ -42,7 +42,8 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!emailRegex.hasMatch(email)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Format email tidak valid. Gunakan format contoh: petani@gmail.com'),
+          content: Text(
+              'Format email tidak valid. Gunakan format contoh: petani@gmail.com'),
           backgroundColor: AppColors.danger,
         ),
       );
@@ -78,6 +79,12 @@ class _LoginScreenState extends State<LoginScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _loginWithDemoAccount(String email) {
+    _emailCtrl.text = email;
+    _passwordCtrl.text = 'Satutani2026';
+    _login();
   }
 
   void _signInWithGoogle() async {
@@ -197,22 +204,74 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                   const SizedBox(height: 22),
+                  const Center(
+                    child: Text(
+                      'Masuk cepat sebagai',
+                      style: TextStyle(
+                        color: AppColors.textSecondary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _loading
+                              ? null
+                              : () => _loginWithDemoAccount(
+                                    'satutani@gmail.com',
+                                  ),
+                          icon: const Icon(Icons.agriculture_outlined),
+                          label: const Text('Farmer'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: _loading
+                              ? null
+                              : () => _loginWithDemoAccount(
+                                    'buyersatutani@gmail.com',
+                                  ),
+                          icon: const Icon(Icons.shopping_bag_outlined),
+                          label: const Text('Buyer'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primary,
+                            side: const BorderSide(color: AppColors.primary),
+                            minimumSize: const Size.fromHeight(48),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
                   // Divider "atau"
                   Row(
                     children: [
-                      const Expanded(
-                          child: Divider(color: AppColors.border)),
+                      const Expanded(child: Divider(color: AppColors.border)),
                       Padding(
-                        padding:
-                            const EdgeInsets.symmetric(horizontal: 14),
+                        padding: const EdgeInsets.symmetric(horizontal: 14),
                         child: Text('atau',
                             style: TextStyle(
                                 fontSize: 13,
                                 color: AppColors.textSecondary
                                     .withValues(alpha: 0.9))),
                       ),
-                      const Expanded(
-                          child: Divider(color: AppColors.border)),
+                      const Expanded(child: Divider(color: AppColors.border)),
                     ],
                   ),
                   const SizedBox(height: 22),
@@ -307,8 +366,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.25)),
+                  border:
+                      Border.all(color: Colors.white.withValues(alpha: 0.25)),
                 ),
                 child: Image.asset(
                   'assets/images/logo putih.png',
@@ -395,8 +454,7 @@ class _LoginScreenState extends State<LoginScreen> {
       suffixIcon: suffix,
       filled: true,
       fillColor: const Color(0xFFF7F8FA),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(14),
         borderSide: BorderSide(color: Colors.grey.shade200),
