@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/services/product_service.dart';
 import '../../../../data/models/product_model.dart';
+import '../../../widgets/seller_ui.dart';
 import 'add_product_screen.dart';
 
 class FarmerProductsScreen extends StatefulWidget {
@@ -11,6 +14,7 @@ class FarmerProductsScreen extends StatefulWidget {
 }
 
 class _FarmerProductsScreenState extends State<FarmerProductsScreen> {
+  static const _filters = ['Semua', 'Aktif', 'Habis', 'Pre-Order'];
   String _filter = 'Semua';
   late Future<List<ProductModel>> _productsFuture;
 
@@ -26,25 +30,17 @@ class _FarmerProductsScreenState extends State<FarmerProductsScreen> {
     });
   }
 
-  List<ProductModel> _filterProducts(List<ProductModel> products) {
-    return products.where((p) {
-      if (_filter == 'Aktif') return p.isAvailable;
-      if (_filter == 'Habis') return !p.isAvailable;
-      if (_filter == 'Pre-Order') return p.isPreOrder;
-      return true;
-    }).toList();
+  bool _matches(ProductModel p, String filter) {
+    if (filter == 'Aktif') return p.isAvailable;
+    if (filter == 'Habis') return !p.isAvailable;
+    if (filter == 'Pre-Order') return p.isPreOrder;
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Produk Saya'),
-        elevation: 0,
-        backgroundColor: Colors.white,
-        foregroundColor: AppColors.textPrimary,
-      ),
+      backgroundColor: sellerCanvas,
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () async {
           final result = await Navigator.push(
@@ -56,94 +52,91 @@ class _FarmerProductsScreenState extends State<FarmerProductsScreen> {
           }
         },
         backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_rounded, color: Colors.white),
+        elevation: 4,
+        shape: const StadiumBorder(),
+        icon: const Icon(Iconsax.box_add_copy, color: Colors.white),
         label: const Text('Tambah Produk',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
       ),
       floatingActionButtonLocation: FloatingActionButtonLocation.startFloat,
-      body: Column(
-        children: [
-          // Filter chips
-          SizedBox(
-            height: 52,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-              children: ['Semua', 'Aktif', 'Habis', 'Pre-Order'].map((f) {
-                final sel = _filter == f;
-                return GestureDetector(
-                  onTap: () => setState(() => _filter = f),
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 8),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: sel ? AppColors.primary : AppColors.surface,
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                          color: sel ? AppColors.primary : AppColors.border),
-                    ),
-                    child: Text(f,
-                        style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            color: sel ? Colors.white : AppColors.textPrimary)),
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          // Product list
-          Expanded(
-            child: FutureBuilder<List<ProductModel>>(
-              future: _productsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+      body: FutureBuilder<List<ProductModel>>(
+        future: _productsFuture,
+        builder: (context, snapshot) {
+          final loading = snapshot.connectionState == ConnectionState.waiting;
+          final products = snapshot.data ?? [];
+          final activeCount = products.where((p) => p.isAvailable).length;
+          final filtered = products.where((p) => _matches(p, _filter)).toList();
 
-                if (snapshot.hasError) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(Icons.error_outline,
-                            size: 48, color: AppColors.textSecondary),
-                        const SizedBox(height: 16),
-                        Text('Error: ${snapshot.error}',
-                            textAlign: TextAlign.center),
-                        const SizedBox(height: 16),
-                        ElevatedButton(
-                          onPressed: _loadProducts,
-                          child: const Text('Coba Lagi'),
-                        ),
-                      ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SellerPageHeader(
+                title: 'Produk Saya',
+                subtitle: loading ? 'Memuat produk…' : '${products.length} produk · $activeCount aktif dijual',
+                trailing: IconButton(
+                  onPressed: _loadProducts,
+                  tooltip: 'Muat ulang',
+                  style: IconButton.styleFrom(backgroundColor: Colors.white),
+                  icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary),
+                ),
+              ),
+              SizedBox(
+                height: 40,
+                child: ListView(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  children: _filters
+                      .map((f) => SellerFilterPill(
+                            label: f,
+                            count: loading ? null : products.where((p) => _matches(p, f)).length,
+                            selected: _filter == f,
+                            onTap: () => setState(() => _filter = f),
+                          ))
+                      .toList(),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Expanded(
+                child: Builder(builder: (_) {
+                  if (loading) {
+                    return const SellerSkeletonList();
+                  }
+                  if (snapshot.hasError) {
+                    return SellerErrorState(message: '${snapshot.error}', onRetry: _loadProducts);
+                  }
+                  if (filtered.isEmpty) {
+                    return Center(
+                      child: SellerEmptyState(
+                        icon: Icons.inventory_2_outlined,
+                        title: _filter == 'Semua' ? 'Belum ada produk' : 'Tidak ada produk "$_filter"',
+                        subtitle: _filter == 'Semua'
+                            ? 'Ketuk Tambah Produk atau gunakan perintah suara.'
+                            : 'Coba pilih filter lain.',
+                      ),
+                    );
+                  }
+                  return RefreshIndicator(
+                    color: AppColors.primary,
+                    onRefresh: () async => _loadProducts(),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 110),
+                      itemCount: filtered.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (_, i) => _FarmerProductCard(
+                        key: ValueKey(filtered[i].id),
+                        product: filtered[i],
+                        onChanged: _loadProducts,
+                      )
+                          .animate(delay: (40 * i.clamp(0, 8)).ms)
+                          .fadeIn(duration: 320.ms)
+                          .slideX(begin: 0.06, curve: Curves.easeOutCubic),
                     ),
                   );
-                }
-
-                final products = snapshot.data ?? [];
-                final filtered = _filterProducts(products);
-
-                if (filtered.isEmpty) {
-                  return const Center(
-                      child: Text('Tidak ada produk',
-                          style: TextStyle(color: AppColors.textSecondary)));
-                }
-
-                return ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: filtered.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _FarmerProductCard(
-                    product: filtered[i],
-                    onChanged: _loadProducts,
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
+                }),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -152,7 +145,7 @@ class _FarmerProductsScreenState extends State<FarmerProductsScreen> {
 class _FarmerProductCard extends StatefulWidget {
   final ProductModel product;
   final VoidCallback onChanged;
-  const _FarmerProductCard({required this.product, required this.onChanged});
+  const _FarmerProductCard({super.key, required this.product, required this.onChanged});
   @override
   State<_FarmerProductCard> createState() => _FarmerProductCardState();
 }
@@ -185,6 +178,7 @@ class _FarmerProductCardState extends State<_FarmerProductCard> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         title: const Text('Hapus Produk'),
         content: Text('Yakin ingin menghapus "${widget.product.name}"?'),
         actions: [
@@ -245,121 +239,122 @@ class _FarmerProductCardState extends State<_FarmerProductCard> {
     }
   }
 
+  PopupMenuItem<String> _menuItem(String value, IconData icon, String label, {Color? color}) {
+    return PopupMenuItem(
+      value: value,
+      height: 42,
+      child: Row(children: [
+        Icon(icon, size: 19, color: color ?? AppColors.textPrimary),
+        const SizedBox(width: 10),
+        Text(label, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: color ?? AppColors.textPrimary)),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = widget.product;
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8)
-        ],
-      ),
-      child: Row(children: [
-        ClipRRect(
-          borderRadius:
-              const BorderRadius.horizontal(left: Radius.circular(14)),
-          child: Image.network(
-              p.imageUrls.isNotEmpty
-                  ? p.imageUrls.first
-                  : 'https://via.placeholder.com/85',
-              width: 85,
-              height: 85,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                  width: 85,
-                  height: 85,
-                  color: AppColors.primaryLight,
-                  child:
-                      const Icon(Icons.eco_rounded, color: AppColors.primary))),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(p.name,
-              style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis),
-          const SizedBox(height: 2),
-          Text(
-              'Rp ${p.price.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}/${p.unit}',
-              style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.primary,
-                  fontWeight: FontWeight.w600)),
-          const SizedBox(height: 4),
-          // Stock bar
-          Row(children: [
-            Expanded(
-                child: LinearProgressIndicator(
-              value: p.stock > 0 ? (p.stock / 100).clamp(0.0, 1.0) : 0,
-              backgroundColor: AppColors.border,
-              color: p.stock > 20 ? AppColors.success : AppColors.warning,
-              borderRadius: BorderRadius.circular(4),
-              minHeight: 5,
-            )),
-            const SizedBox(width: 6),
-            Text('${p.stock.toStringAsFixed(0)}${p.unit}',
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.textSecondary)),
-          ]),
-        ])),
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Switch.adaptive(
-              value: _active,
-              activeColor: AppColors.primary,
-              onChanged: (_) => _toggleActive()),
-          PopupMenuButton(
-            icon: const Icon(Icons.more_vert_rounded,
-                color: AppColors.textSecondary, size: 20),
-            itemBuilder: (_) => [
-              PopupMenuItem(
-                value: 'edit',
-                child: ListTile(
-                  leading: const Icon(Icons.edit_outlined),
-                  title: const Text('Edit'),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _handleEdit();
-                  },
-                ),
-              ),
-              PopupMenuItem(
-                value: 'dup',
-                child: ListTile(
-                  leading: const Icon(Icons.copy_outlined),
-                  title: const Text('Duplikat'),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _handleDuplicate();
-                  },
-                ),
-              ),
-              PopupMenuItem(
-                value: 'del',
-                child: ListTile(
-                  leading: const Icon(Icons.delete_outline_rounded,
-                      color: AppColors.danger),
-                  title: const Text('Hapus',
-                      style: TextStyle(color: AppColors.danger)),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  onTap: () {
-                    Navigator.pop(context);
-                    _showDeleteConfirm();
-                  },
-                ),
-              ),
-            ],
+    final lowStock = p.stock <= 10;
+    final stockColor = p.stock <= 0
+        ? AppColors.danger
+        : lowStock
+            ? AppColors.warning
+            : AppColors.primaryMid;
+
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: _active ? 1 : 0.7,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: sellerCard(),
+        child: Row(children: [
+          SellerProductImage(
+            url: p.imageUrls.isNotEmpty ? p.imageUrls.first : null,
+            name: p.name,
+            width: 84,
+            height: 84,
+            radius: 14,
           ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(
+                  child: Text(p.name,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: AppColors.textPrimary),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis),
+                ),
+                if (p.isPreOrder)
+                  Container(
+                    margin: const EdgeInsets.only(left: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: AppColors.preOrderPurple.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text('Pre-Order',
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800, color: AppColors.preOrderPurple)),
+                  ),
+              ]),
+              const SizedBox(height: 3),
+              Text.rich(TextSpan(children: [
+                TextSpan(
+                  text: rupiah(p.price),
+                  style: const TextStyle(fontSize: 13.5, color: AppColors.primary, fontWeight: FontWeight.w800),
+                ),
+                TextSpan(
+                  text: ' /${p.unit}',
+                  style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary),
+                ),
+              ])),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: p.stock > 0 ? (p.stock / 100).clamp(0.04, 1.0) : 0,
+                      backgroundColor: const Color(0xFFEDF1EC),
+                      color: stockColor,
+                      minHeight: 6,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('${p.stock.toStringAsFixed(0)} ${p.unit}',
+                    style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: stockColor)),
+              ]),
+            ]),
+          ),
+          const SizedBox(width: 4),
+          Column(mainAxisSize: MainAxisSize.min, children: [
+            Transform.scale(
+              scale: 0.82,
+              child: Switch.adaptive(
+                value: _active,
+                activeColor: AppColors.primary,
+                onChanged: (_) => _toggleActive(),
+              ),
+            ),
+            PopupMenuButton<String>(
+              tooltip: 'Opsi produk',
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              icon: const Icon(Iconsax.more, color: AppColors.textSecondary, size: 20),
+              onSelected: (v) {
+                if (v == 'edit') _handleEdit();
+                if (v == 'dup') _handleDuplicate();
+                if (v == 'del') _showDeleteConfirm();
+              },
+              itemBuilder: (_) => [
+                _menuItem('edit', Iconsax.edit_2, 'Edit'),
+                _menuItem('dup', Iconsax.copy, 'Duplikat'),
+                _menuItem('del', Iconsax.trash, 'Hapus', color: AppColors.danger),
+              ],
+            ),
+          ]),
         ]),
-      ]),
+      ),
     );
   }
 }
