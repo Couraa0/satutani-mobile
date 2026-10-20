@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/colors.dart';
+import '../../../../core/services/auth_service.dart';
+import '../../../../core/services/user_service.dart';
 import '../../../../data/models/farmer_order.dart';
 import '../../../../data/models/product_model.dart';
 import '../../../../data/mock/orders_mock.dart' show OrderStatus;
@@ -36,6 +37,28 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
   final _scrollCtrl = ScrollController();
   final _collapsed = ValueNotifier(false);
 
+  // Nama pemegang "Kartu Petani" diambil dari profil DB (fallback metadata auth).
+  String? _holderName;
+
+  String get _cardHolder {
+    final user = AuthService.currentUser;
+    final meta = user?.userMetadata;
+    return _holderName ??
+        (meta?['full_name'] as String?) ??
+        (meta?['name'] as String?) ??
+        user?.email?.split('@').first ??
+        'Petani SatuTani';
+  }
+
+  /// 4 digit stabil dari user id, ditampilkan sebagai "ID Petani" tersamar.
+  String get _memberNo {
+    var h = 7;
+    for (final c in (AuthService.currentUser?.id ?? '').codeUnits) {
+      h = (h * 31 + c) % 10000;
+    }
+    return h.toString().padLeft(4, '0');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -45,6 +68,10 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
     );
     _headerFade = CurvedAnimation(parent: _headerAnimCtrl, curve: Curves.easeOut);
     _headerAnimCtrl.forward();
+    UserService.getMyProfile().then((p) {
+      final n = p?['name'] as String?;
+      if (mounted && n != null && n.trim().isNotEmpty) setState(() => _holderName = n.trim());
+    });
     _scrollCtrl.addListener(() {
       final c = _scrollCtrl.offset > 120; // expandedHeight 220 - toolbar ≈ 164
       if (c != _collapsed.value) _collapsed.value = c;
@@ -327,13 +354,20 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                   // ── Ringkasan Pendapatan ─────────────────────────────────────
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                    child: _SummaryCard(
+                    child: _FarmerCard(
                       revenue: isLoading ? null : todayRevenue,
-                      activeOrders: activeOrdersCount,
-                      productCount: products.length,
-                      completedCount: completedCount,
-                      orders: orders,
+                      holderName: _cardHolder,
+                      memberNo: _memberNo,
                       onTap: () => widget.onOpenTab?.call(3),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _StatsStrip(
+                      activeOrders: activeOrdersCount,
+                      completedCount: completedCount,
+                      productCount: products.length,
+                      onOpenTab: widget.onOpenTab,
                     ),
                   ),
 
@@ -563,147 +597,309 @@ class _VoiceShortcutChip extends StatelessWidget {
   }
 }
 
-class _SummaryCard extends StatelessWidget {
+/// "Kartu Petani" — kartu pendapatan bergaya kartu kredit dengan identitas SatuTani.
+class _FarmerCard extends StatelessWidget {
   final double? revenue;
-  final int activeOrders;
-  final int productCount;
-  final int completedCount;
-  final List<FarmerOrder> orders;
+  final String holderName;
+  final String memberNo;
   final VoidCallback onTap;
 
-  const _SummaryCard({
-    required this.orders,
-    this.revenue,
-    required this.activeOrders,
-    required this.productCount,
-    required this.completedCount,
-    required this.onTap,
-  });
+  const _FarmerCard({this.revenue, required this.holderName, required this.memberNo, required this.onTap});
+
+  static const _gold = Color(0xFFE9C46A);
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        clipBehavior: Clip.antiAlias,
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF0A6B32), AppColors.primary, AppColors.primaryDark],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(color: AppColors.primary.withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 10)),
-          ],
-        ),
-        child: Stack(
-          children: [
-            // Ornamen lingkaran lembut
-            Positioned(
-              right: -40,
-              top: -50,
-              child: Container(
-                width: 160,
-                height: 160,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.06)),
-              ),
-            ),
-            Positioned(
-              right: 30,
-              bottom: -70,
-              child: Container(
-                width: 130,
-                height: 130,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.04)),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(18),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.14),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Icon(Icons.account_balance_wallet_rounded, color: Colors.white, size: 16),
-                      ),
-                      const SizedBox(width: 8),
-                      const Expanded(
-                        child: Text('Pendapatan Selesai',
-                            style: TextStyle(color: Colors.white70, fontSize: 13, fontWeight: FontWeight.w600)),
-                      ),
-                      const Text('Detail',
-                          style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
-                      const Icon(Icons.chevron_right_rounded, color: Colors.white, size: 18),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  revenue == null
-                      ? const SizedBox(
-                          height: 34,
-                          width: 120,
-                          child: Center(
-                            child: LinearProgressIndicator(color: Colors.white38, backgroundColor: Colors.transparent),
-                          ),
-                        )
-                      : CountUpRupiah(
-                          value: revenue!,
-                          style: const TextStyle(
-                              color: Colors.white, fontSize: 30, fontWeight: FontWeight.w900, letterSpacing: -0.8),
-                        ),
-                  const SizedBox(height: 4),
-                  _Sparkline(orders: orders),
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                    ),
-                    child: Row(
+      child: AspectRatio(
+        aspectRatio: 1.586, // rasio kartu ISO ID-1 (ukuran kartu kredit)
+        child: FarmerCardSurface(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Penerbit kartu
+                    Row(
                       children: [
-                        _MiniStat(value: '$activeOrders', label: 'Pesanan Aktif'),
-                        _divider(),
-                        _MiniStat(value: '$completedCount', label: 'Selesai'),
-                        _divider(),
-                        _MiniStat(value: '$productCount', label: 'Produk'),
+                        ClipRect(
+                          child: Align(
+                            alignment: const Alignment(0, -0.15),
+                            widthFactor: 0.5,
+                            heightFactor: 0.66,
+                            child: Image.asset('assets/images/logo putih.png', width: 60),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Image.asset(
+                          'assets/images/font putih.webp',
+                          height: 15,
+                          errorBuilder: (_, __, ___) => const Text('SatuTani',
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                        ),
+                        const Spacer(),
+                        const Text(
+                          'KARTU PETANI',
+                          style: TextStyle(color: _gold, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.6),
+                        ),
                       ],
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const _EmvChip(),
+                        const SizedBox(width: 10),
+                        Icon(Icons.contactless_outlined, color: Colors.white.withValues(alpha: 0.75), size: 22),
+                        const Spacer(),
+                        Text('Detail',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85), fontSize: 12, fontWeight: FontWeight.w700)),
+                        Icon(Icons.chevron_right_rounded, color: Colors.white.withValues(alpha: 0.85), size: 18),
+                      ],
+                    ),
+                    const Spacer(),
+                    const Text('Pendapatan Selesai',
+                        style: TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    revenue == null
+                        ? const SizedBox(
+                            height: 34,
+                            width: 120,
+                            child: Center(
+                              child: LinearProgressIndicator(color: Colors.white38, backgroundColor: Colors.transparent),
+                            ),
+                          )
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: CountUpRupiah(
+                              value: revenue!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                                fontFeatures: [FontFeature.tabularFigures()],
+                                shadows: [Shadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 2)],
+                              ),
+                            ),
+                          ),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: _CardField(label: 'PEMEGANG KARTU', value: holderName.toUpperCase())),
+                        const SizedBox(width: 10),
+                        _CardField(label: 'ID PETANI', value: '•••• $memberNo'),
+                        const SizedBox(width: 12),
+                        const _CardSeal(),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
         ),
+      ),
+    ).animate().shimmer(delay: 700.ms, duration: 1600.ms, color: Colors.white.withValues(alpha: 0.18));
+  }
+}
+
+class _CardField extends StatelessWidget {
+  final String label;
+  final String value;
+  const _CardField({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.55), fontSize: 8.5, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+        const SizedBox(height: 2),
+        Text(value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 1.0)),
+      ],
+    );
+  }
+}
+
+/// Chip kontak emas ala kartu EMV.
+class _EmvChip extends StatelessWidget {
+  const _EmvChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 30,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF7E7A8), Color(0xFFD4A94F), Color(0xFFF0D388)],
+        ),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 2, offset: const Offset(0, 1))],
+      ),
+      child: const CustomPaint(painter: _ChipLinesPainter()),
+    );
+  }
+}
+
+class _ChipLinesPainter extends CustomPainter {
+  const _ChipLinesPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = const Color(0x66704A12)
+      ..strokeWidth = 0.9
+      ..style = PaintingStyle.stroke;
+    final w = size.width, h = size.height;
+    canvas.drawLine(Offset(0, h / 3), Offset(w * 0.35, h / 3), p);
+    canvas.drawLine(Offset(w * 0.65, h / 3), Offset(w, h / 3), p);
+    canvas.drawLine(Offset(0, h * 2 / 3), Offset(w * 0.35, h * 2 / 3), p);
+    canvas.drawLine(Offset(w * 0.65, h * 2 / 3), Offset(w, h * 2 / 3), p);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTRB(w * 0.35, h * 0.2, w * 0.65, h * 0.8), const Radius.circular(3)),
+      p,
+    );
+    canvas.drawLine(Offset(w / 2, 0), Offset(w / 2, h * 0.2), p);
+    canvas.drawLine(Offset(w / 2, h * 0.8), Offset(w / 2, h), p);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Segel emas penanda jaringan kartu (milik SatuTani sendiri, bukan logo jaringan nyata).
+class _CardSeal extends StatelessWidget {
+  const _CardSeal();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF7E7A8), Color(0xFFD4A94F)],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+      ),
+      child: const Icon(Icons.eco_rounded, color: AppColors.primaryDark, size: 18),
+    );
+  }
+}
+
+/// Strip statistik di bawah kartu; tiap item membuka tab terkait.
+class _StatsStrip extends StatelessWidget {
+  final int activeOrders;
+  final int completedCount;
+  final int productCount;
+  final ValueChanged<int>? onOpenTab;
+
+  const _StatsStrip({
+    required this.activeOrders,
+    required this.completedCount,
+    required this.productCount,
+    this.onOpenTab,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget divider() => Container(width: 1, height: 30, color: const Color(0xFFEDF1EC));
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: sellerCard(),
+      child: Row(
+        children: [
+          _StatTile(
+            icon: Iconsax.receipt_item,
+            color: AppColors.warning,
+            value: '$activeOrders',
+            label: 'Pesanan Aktif',
+            onTap: () => onOpenTab?.call(2),
+          ),
+          divider(),
+          _StatTile(
+            icon: Iconsax.task_square,
+            color: AppColors.primaryMid,
+            value: '$completedCount',
+            label: 'Selesai',
+            onTap: () => onOpenTab?.call(3),
+          ),
+          divider(),
+          _StatTile(
+            icon: Iconsax.box,
+            color: AppColors.info,
+            value: '$productCount',
+            label: 'Produk',
+            onTap: () => onOpenTab?.call(1),
+          ),
+        ],
       ),
     );
   }
-
-  Widget _divider() => Container(width: 1, height: 28, color: Colors.white.withValues(alpha: 0.15));
 }
 
-class _MiniStat extends StatelessWidget {
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
   final String value;
   final String label;
-  const _MiniStat({required this.value, required this.label});
+  final VoidCallback onTap;
+
+  const _StatTile({
+    required this.icon,
+    required this.color,
+    required this.value,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
-      child: Column(
-        children: [
-          Text(value, style: const TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 1),
-          Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11)),
-        ],
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+                    child: Icon(icon, color: color, size: 14),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(value,
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -926,65 +1122,6 @@ class _QuickActionState extends State<_QuickAction> with SingleTickerProviderSta
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Sparkline pendapatan selesai 7 hari terakhir di kartu ringkasan.
-class _Sparkline extends StatelessWidget {
-  final List<FarmerOrder> orders;
-  const _Sparkline({required this.orders});
-
-  @override
-  Widget build(BuildContext context) {
-    final today = DateTime.now();
-    final days = List.generate(7, (i) {
-      final d = DateTime(today.year, today.month, today.day - (6 - i));
-      return orders
-          .where((o) =>
-              o.status == OrderStatus.selesai &&
-              o.createdAt.year == d.year &&
-              o.createdAt.month == d.month &&
-              o.createdAt.day == d.day)
-          .fold(0.0, (s, o) => s + o.total);
-    });
-    final max = days.fold(0.0, (m, v) => v > m ? v : m);
-    if (max <= 0) return const SizedBox(height: 8); // belum ada penjualan 7 hari: garis datar tidak bermakna
-    return SizedBox(
-      height: 38,
-      child: LineChart(
-        LineChartData(
-          minY: 0,
-          maxY: max <= 0 ? 1 : max * 1.15,
-          gridData: const FlGridData(show: false),
-          titlesData: const FlTitlesData(show: false),
-          borderData: FlBorderData(show: false),
-          lineTouchData: const LineTouchData(enabled: false),
-          lineBarsData: [
-            LineChartBarData(
-              spots: [for (var i = 0; i < days.length; i++) FlSpot(i.toDouble(), days[i])],
-              isCurved: true,
-              preventCurveOverShooting: true,
-              color: const Color(0xFFB8F5C8),
-              barWidth: 2.2,
-              dotData: FlDotData(
-                show: true,
-                checkToShowDot: (spot, _) => spot.x == days.length - 1,
-                getDotPainter: (_, __, ___, ____) =>
-                    FlDotCirclePainter(radius: 3.2, color: Colors.white, strokeWidth: 2, strokeColor: const Color(0xFFB8F5C8)),
-              ),
-              belowBarData: BarAreaData(
-                show: true,
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Colors.white.withValues(alpha: 0.22), Colors.white.withValues(alpha: 0)],
-                ),
-              ),
-            ),
-          ],
         ),
       ),
     );

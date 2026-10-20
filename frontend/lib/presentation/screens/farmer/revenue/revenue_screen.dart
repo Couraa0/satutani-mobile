@@ -119,30 +119,8 @@ class _RevenueScreenState extends State<RevenueScreen> {
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 110),
       children: <Widget>[
         // ── Hero pendapatan bulan ini ─────────────────────────────────────
-        Container(
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF0A6B32), AppColors.primary, AppColors.primaryDark],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.circular(22),
-            boxShadow: [
-              BoxShadow(color: AppColors.primary.withValues(alpha: 0.28), blurRadius: 22, offset: const Offset(0, 10)),
-            ],
-          ),
-          child: Stack(children: [
-            Positioned(
-              right: -36,
-              top: -46,
-              child: Container(
-                width: 150,
-                height: 150,
-                decoration: BoxDecoration(shape: BoxShape.circle, color: Colors.white.withValues(alpha: 0.06)),
-              ),
-            ),
-            Padding(
+        FarmerCardSurface(
+          child: Padding(
               padding: const EdgeInsets.all(18),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Pendapatan ${_months[now.month - 1]} ${now.year}',
@@ -190,7 +168,6 @@ class _RevenueScreenState extends State<RevenueScreen> {
                 ),
               ]),
             ),
-          ]),
         ),
         const SizedBox(height: 14),
 

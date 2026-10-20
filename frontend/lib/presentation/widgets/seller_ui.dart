@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import '../../core/constants/colors.dart';
@@ -403,3 +404,95 @@ class OrderProgressBar extends StatelessWidget {
     ]);
   }
 }
+
+/// Latar "Kartu Petani" (gradien hijau, guilloche, cincin emas, kilau, watermark emblem).
+/// Dipakai kartu pendapatan di Beranda dan hero di tab Dompet agar seragam.
+class FarmerCardSurface extends StatelessWidget {
+  final Widget child;
+  const FarmerCardSurface({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF0E6B36), AppColors.primary, Color(0xFF00240E)],
+          stops: [0, 0.55, 1],
+        ),
+        boxShadow: [
+          BoxShadow(color: AppColors.primaryDark.withValues(alpha: 0.35), blurRadius: 26, offset: const Offset(0, 14)),
+        ],
+      ),
+      child: Stack(
+        // passthrough: mengisi penuh di AspectRatio, menyesuaikan tinggi isi di ListView.
+        fit: StackFit.passthrough,
+        children: [
+          const Positioned.fill(child: CustomPaint(painter: _CardGuillochePainter())),
+          Positioned(
+            right: -40,
+            bottom: -56,
+            child: Opacity(
+              opacity: 0.09,
+              child: Image.asset('assets/images/logo putih.png', width: 250),
+            ),
+          ),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+/// Pola guilloche (gelombang halus) + cincin emas + kilau diagonal, seperti kartu bank.
+class _CardGuillochePainter extends CustomPainter {
+  const _CardGuillochePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final wave = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8
+      ..color = Colors.white.withValues(alpha: 0.07);
+    for (var k = 0; k < 14; k++) {
+      final path = Path();
+      for (double x = 0; x <= w; x += 4) {
+        final y = h * 0.6 + math.sin(x / w * math.pi * 3 + k * 0.42) * h * 0.10 + (k - 7) * 3.2;
+        x == 0 ? path.moveTo(x, y) : path.lineTo(x, y);
+      }
+      canvas.drawPath(path, wave);
+    }
+
+    final ring = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFFE9C46A).withValues(alpha: 0.10);
+    for (double r = 30; r < w * 0.75; r += 16) {
+      canvas.drawCircle(Offset(w * 0.98, -h * 0.12), r, ring);
+    }
+
+    final rect = Offset.zero & size;
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: 0),
+            Colors.white.withValues(alpha: 0.07),
+            Colors.white.withValues(alpha: 0),
+          ],
+          stops: const [0.3, 0.45, 0.6],
+        ).createShader(rect),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
