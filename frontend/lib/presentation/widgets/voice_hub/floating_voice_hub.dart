@@ -152,11 +152,13 @@ class _VoiceSheetOverlayState extends ConsumerState<_VoiceSheetOverlay> {
   final TextEditingController _inputCtrl = TextEditingController();
 
   final List<String> _voicePresets = [
+    "Pak, saya petani di Lembang. Komoditas apa yang cocok ditanam bulan ini?",
+    "Kapan waktu terbaik mulai tanam cabai di Cianjur?",
+    "Hama apa yang perlu diwaspadai untuk tomat di Bandung Kota musim hujan?",
+    "Estimasi panen jagung lahan 0.5 hektar di Bekasi dapat berapa ton dan rupiah?",
+    "Berapa harga jual semangka dan melon di Tasikmalaya sekarang?",
     "Tolong saya ingin memasukan wortel 70 kg ke produk saya.",
     "Cek riwayat penjualan saya minggu ini",
-    "Berapa total wortel yang laku?",
-    "Hama apa yang perlu diwaspadai musim ini?",
-    "Rekomendasi pupuk terbaik untuk tanaman cabai",
   ];
 
   void _sendPreset(String text) {

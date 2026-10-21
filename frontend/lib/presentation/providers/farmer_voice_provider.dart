@@ -1,7 +1,10 @@
+import 'dart:typed_data';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:just_audio/just_audio.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../../core/services/voice_ai_service.dart';
+import '../../core/services/elevenlabs_tts_service.dart';
 import '../../core/services/product_service.dart';
 import '../../core/services/order_service.dart';
 import '../../data/models/product_model.dart';
@@ -60,6 +63,7 @@ class FarmerVoiceState {
 class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
   final FlutterTts _flutterTts = FlutterTts();
   final stt.SpeechToText _speech = stt.SpeechToText();
+  final AudioPlayer _audioPlayer = AudioPlayer();
   bool _isProcessingCommand = false;
 
   FarmerVoiceNotifier() : super(FarmerVoiceState()) {
@@ -69,13 +73,42 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
 
   void _initAudioServices() async {
     try {
+      // Configure flutter_tts with Indonesian language & natural cadence
       await _flutterTts.setLanguage("id-ID");
-      await _flutterTts.setSpeechRate(0.45);
+      await _flutterTts.setSpeechRate(0.48);
       await _flutterTts.setPitch(1.0);
+      await _flutterTts.setVolume(1.0);
+
+      // Pick Indonesian voice if available
+      try {
+        final dynamic voices = await _flutterTts.getVoices;
+        if (voices is List) {
+          for (final v in voices) {
+            if (v is Map && (v['locale']?.toString().toLowerCase().contains('id') ?? false)) {
+              await _flutterTts.setVoice({
+                "name": v["name"].toString(),
+                "locale": v["locale"].toString()
+              });
+              break;
+            }
+          }
+        }
+      } catch (_) {}
+
       _flutterTts.setCompletionHandler(() {
         _isProcessingCommand = false;
         if (mounted && state.voiceState == VoiceState.speaking) {
           state = state.copyWith(voiceState: VoiceState.idle);
+        }
+      });
+
+      // Listen for ElevenLabs audio player completion
+      _audioPlayer.playerStateStream.listen((playerState) {
+        if (playerState.processingState == ProcessingState.completed) {
+          _isProcessingCommand = false;
+          if (mounted && state.voiceState == VoiceState.speaking) {
+            state = state.copyWith(voiceState: VoiceState.idle);
+          }
         }
       });
     } catch (_) {}
@@ -86,7 +119,27 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     if (text.isEmpty) return text;
     String cleaned = text.trim();
 
-    // Split by capital letter boundaries that indicate concatenated partial STT results
+    // 1. Mobile Web STT accumulator fix:
+    // Web Speech API on mobile often appends streaming hypotheses without clearing prior interim chunks
+    // e.g. "masukkanmasukkanmasukkan wortelmasukkan wortel sebanyak...masukkan wortel sebanyak 70 kilo"
+    final firstWordMatch = RegExp(r'^[a-zA-Z0-9]+').firstMatch(cleaned);
+    if (firstWordMatch != null && firstWordMatch.group(0)!.length >= 2) {
+      final firstWord = firstWordMatch.group(0)!;
+      final matches = RegExp(RegExp.escape(firstWord), caseSensitive: false)
+          .allMatches(cleaned)
+          .toList();
+
+      if (matches.length > 1) {
+        // The last occurrence of the sentence-starting token marks the final and most complete hypothesis
+        final lastStart = matches.last.start;
+        final candidate = cleaned.substring(lastStart).trim();
+        if (candidate.isNotEmpty) {
+          cleaned = candidate;
+        }
+      }
+    }
+
+    // 2. Split by capital letter boundaries that indicate concatenated partial STT results
     // e.g. "BerapaBerapa hargaBerapa harga bawang..." -> ["Berapa", "Berapa harga", "Berapa harga bawang", ...]
     final segments = cleaned.split(RegExp(r'(?<=[a-zA-Z0-9])(?=[A-Z][a-z])'));
 
@@ -98,12 +151,13 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       }
     }
 
-    // Remove adjacent duplicate words e.g. "bawang bawang" -> "bawang"
+    // 3. Remove adjacent duplicate words e.g. "bawang bawang" -> "bawang"
     final words = cleaned.split(RegExp(r'\s+'));
     final List<String> deduplicatedWords = [];
     for (final w in words) {
+      if (w.trim().isEmpty) continue;
       if (deduplicatedWords.isEmpty || deduplicatedWords.last.toLowerCase() != w.toLowerCase()) {
-        deduplicatedWords.add(w);
+        deduplicatedWords.add(w.trim());
       }
     }
 
@@ -166,15 +220,34 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       );
 
       if (available) {
+        // Dynamically find supported Indonesian locale for mobile/web compatibility
+        String targetLocale = 'id-ID';
+        try {
+          final locales = await _speech.locales();
+          for (final loc in locales) {
+            final idLower = loc.localeId.toLowerCase();
+            final nameLower = loc.name.toLowerCase();
+            if (idLower.startsWith('id') ||
+                idLower.startsWith('in') ||
+                nameLower.contains('indonesia')) {
+              targetLocale = loc.localeId;
+              break;
+            }
+          }
+        } catch (_) {
+          targetLocale = 'id-ID';
+        }
+
         _speech.listen(
+          localeId: targetLocale,
           listenOptions: stt.SpeechListenOptions(
-            localeId: 'id_ID',
-            cancelOnError: true,
+            localeId: targetLocale,
+            cancelOnError: false,
             partialResults: true,
             listenMode: stt.ListenMode.confirmation,
           ),
-          pauseFor: const Duration(seconds: 2),
-          listenFor: const Duration(seconds: 15),
+          pauseFor: const Duration(seconds: 3),
+          listenFor: const Duration(seconds: 25),
           onResult: (result) {
             if (result.recognizedWords.isNotEmpty) {
               final cleaned = deduplicateSpeechText(result.recognizedWords);
@@ -228,11 +301,11 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
       notificationMessage: result.success ? "✅ Aksi Suara Berhasil Dieksekusi" : "❌ Gagal Mengeksekusi Aksi",
     );
 
-    // Speak audio voice response out loud via TTS
-    _speakAudioResponse(result.speechResponse);
+    // Speak audio voice response — try ElevenLabs first, fallback to device TTS
+    await _speakWithElevenLabsOrFallback(result.speechResponse);
 
     // Fallback transition back to idle after speech completes
-    Future.delayed(const Duration(seconds: 5), () {
+    Future.delayed(const Duration(seconds: 14), () {
       if (mounted && state.voiceState == VoiceState.speaking) {
         _isProcessingCommand = false;
         state = state.copyWith(voiceState: VoiceState.idle);
@@ -240,14 +313,143 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     });
   }
 
-  /// Speak audio response using Text-to-Speech
-  void _speakAudioResponse(String responseText) async {
+  /// Try ElevenLabs TTS first for natural voice; fall back to flutter_tts if unavailable
+  Future<void> _speakWithElevenLabsOrFallback(String responseText) async {
+    final cleanText = _stripMarkdown(responseText);
+    if (cleanText.isEmpty) return;
+
+    try {
+      // Attempt ElevenLabs high-quality TTS via backend proxy
+      final Uint8List? audioBytes = await ElevenLabsTtsService.synthesize(cleanText);
+
+      if (audioBytes != null && audioBytes.isNotEmpty) {
+        // Play the MP3 audio from ElevenLabs
+        await _audioPlayer.stop();
+        final audioSource = _InMemoryAudioSource(audioBytes);
+        await _audioPlayer.setAudioSource(audioSource);
+        await _audioPlayer.play();
+        return; // Success — no need for fallback
+      }
+    } catch (_) {
+      // ElevenLabs failed — fall through to device TTS
+    }
+
+    // Fallback: use device-native TTS with natural Indonesian phonetic normalization
+    _speakWithDeviceTts(cleanText);
+  }
+
+  /// Speak using device-native flutter_tts (fallback with natural phonetic Indonesian)
+  void _speakWithDeviceTts(String text) async {
     try {
       await _flutterTts.stop();
-      // Strip markdown symbols for clean speech synthesis
-      final cleanText = responseText.replaceAll(RegExp(r'\*+|_+|#+|-|\`'), '');
-      await _flutterTts.speak(cleanText);
+      final phoneticIndonesian = formatForIndonesianSpeech(text);
+      await _flutterTts.speak(phoneticIndonesian);
     } catch (_) {}
+  }
+
+  /// Strip markdown symbols for clean speech synthesis
+  static String _stripMarkdown(String text) {
+    return text
+        .replaceAll(RegExp(r'\*+|_+|#+|-|`'), '')
+        .replaceAll(RegExp(r'\[.*?\]\(.*?\)'), '')
+        .replaceAll(RegExp(r'\n+'), ' ')
+        .trim();
+  }
+
+  /// Natural Indonesian Phonetic and Number Converter for Smooth Voice Reading
+  static String formatForIndonesianSpeech(String raw) {
+    String text = _stripMarkdown(raw);
+
+    // Convert Currency (e.g. Rp 35.000, Rp 3.450.000) into Indonesian spoken words
+    text = text.replaceAllMapped(RegExp(r'Rp\s*([\d\.]+)'), (match) {
+      final numStr = match.group(1)?.replaceAll('.', '') ?? '0';
+      final n = int.tryParse(numStr);
+      if (n != null) {
+        return '${numberToIndonesianWords(n)} rupiah';
+      }
+      return match.group(0) ?? '';
+    });
+
+    // Convert dates (e.g. 25/10/2026)
+    text = text.replaceAllMapped(RegExp(r'\b(\d{1,2})\/(\d{1,2})\/(\d{4})\b'), (match) {
+      final day = int.tryParse(match.group(1) ?? '1') ?? 1;
+      final month = int.tryParse(match.group(2) ?? '1') ?? 1;
+      final year = int.tryParse(match.group(3) ?? '2026') ?? 2026;
+      final monthNames = [
+        '', 'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+        'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+      ];
+      final monthStr = (month >= 1 && month <= 12) ? monthNames[month] : 'bulan $month';
+      return 'tanggal ${numberToIndonesianWords(day)} $monthStr tahun ${numberToIndonesianWords(year)}';
+    });
+
+    // Convert decimal numbers (e.g. 0.5 hektar -> setengah hektar)
+    text = text.replaceAll('0.5 hektar', 'setengah hektar');
+    text = text.replaceAll('0,5 hektar', 'setengah hektar');
+    text = text.replaceAllMapped(RegExp(r'\b(\d+)[.,](\d+)\b'), (match) {
+      final whole = int.tryParse(match.group(1) ?? '0') ?? 0;
+      final dec = match.group(2) ?? '0';
+      return '${numberToIndonesianWords(whole)} koma $dec';
+    });
+
+    // Convert common agricultural terms for phonetics
+    text = text.replaceAll('/kg', ' per kilogram');
+    text = text.replaceAll('/ha', ' per hektar');
+    text = text.replaceAll('°C', ' derajat Celsius');
+    text = text.replaceAll('%', ' persen');
+    text = text.replaceAll('kg', ' kilogram');
+    text = text.replaceAll('mm/minggu', ' milimeter per minggu');
+    text = text.replaceAll('±', 'kurang lebih ');
+    text = text.replaceAll('~', 'sekitar ');
+
+    // Normalize spacing
+    text = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text;
+  }
+
+  /// Indonesian Number-to-Words ('Terbilang') Engine
+  static String numberToIndonesianWords(int n) {
+    if (n == 0) return 'nol';
+    if (n < 0) return 'minus ${numberToIndonesianWords(-n)}';
+
+    final units = [
+      '', 'satu', 'dua', 'tiga', 'empat', 'lima',
+      'enam', 'tujuh', 'delapan', 'sembilan', 'sepuluh', 'sebelas'
+    ];
+
+    if (n < 12) return units[n];
+    if (n < 20) return '${units[n - 10]} belas';
+    if (n < 100) {
+      final div = n ~/ 10;
+      final rem = n % 10;
+      return '${units[div]} puluh${rem > 0 ? ' ${units[rem]}' : ''}';
+    }
+    if (n < 200) {
+      final rem = n - 100;
+      return 'seratus${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    if (n < 1000) {
+      final div = n ~/ 100;
+      final rem = n % 100;
+      return '${units[div]} ratus${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    if (n < 2000) {
+      final rem = n - 1000;
+      return 'seribu${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    if (n < 1000000) {
+      final div = n ~/ 1000;
+      final rem = n % 1000;
+      return '${numberToIndonesianWords(div)} ribu${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    if (n < 1000000000) {
+      final div = n ~/ 1000000;
+      final rem = n % 1000000;
+      return '${numberToIndonesianWords(div)} juta${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
+    }
+    final div = n ~/ 1000000000;
+    final rem = n % 1000000000;
+    return '${numberToIndonesianWords(div)} miliar${rem > 0 ? ' ${numberToIndonesianWords(rem)}' : ''}';
   }
 
   /// Stop listening & speech synthesis
@@ -256,6 +458,7 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     try {
       _speech.stop();
       _flutterTts.stop();
+      _audioPlayer.stop();
     } catch (_) {}
     state = state.copyWith(voiceState: VoiceState.idle);
   }
@@ -307,8 +510,31 @@ class FarmerVoiceNotifier extends StateNotifier<FarmerVoiceState> {
     try {
       _speech.stop();
       _flutterTts.stop();
+      _audioPlayer.dispose();
     } catch (_) {}
     super.dispose();
+  }
+}
+
+/// Custom AudioSource that plays audio from in-memory bytes (for ElevenLabs MP3 response)
+class _InMemoryAudioSource extends StreamAudioSource {
+  final Uint8List _audioBytes;
+
+  _InMemoryAudioSource(this._audioBytes);
+
+  @override
+  Future<StreamAudioResponse> request([int? start, int? end]) async {
+    final effectiveStart = start ?? 0;
+    final effectiveEnd = end ?? _audioBytes.length;
+    return StreamAudioResponse(
+      sourceLength: _audioBytes.length,
+      contentLength: effectiveEnd - effectiveStart,
+      offset: effectiveStart,
+      stream: Stream.value(
+        _audioBytes.sublist(effectiveStart, effectiveEnd),
+      ),
+      contentType: 'audio/mpeg',
+    );
   }
 }
 

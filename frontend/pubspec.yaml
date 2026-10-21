@@ -49,6 +49,9 @@ dependencies:
   # Voice Assistant STT & TTS
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.0
+  just_audio: ^0.9.42
+
+  # Icons (seller UI)
   iconsax_flutter: ^1.0.1
 
   # Export CSV (unduh di web / simpan di mobile) — sudah ada sebagai dependency transitif
