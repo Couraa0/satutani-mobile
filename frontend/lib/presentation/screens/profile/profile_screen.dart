@@ -2,21 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/constants/colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/storage_service.dart';
 import '../../../core/services/user_service.dart';
+import '../../../data/mock/orders_mock.dart' show OrderStatus;
+import '../../providers/farmer_voice_provider.dart';
 import '../../widgets/address_sheet.dart';
+import '../../widgets/seller_ui.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
   @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   Map<String, dynamic>? _profile;
   bool _loading = true;
 
@@ -45,6 +49,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (r == 'admin') return 'Admin';
     return 'Pembeli';
   }
+
+  // Tampilan seller (petani) memakai kanvas & kartu bergaya seller; Pembeli tetap seperti semula.
+  bool get _isFarmer => _profile?['role'] == 'farmer';
 
   String get _avatarUrl =>
       (_profile?['avatar_url'] as String?)?.isNotEmpty == true
@@ -136,7 +143,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
     }
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _isFarmer ? sellerCanvas : Colors.white,
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: _loadProfile,
@@ -157,6 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 24),
                     _sectionLabel('AKUN'),
                     _MenuTile(
+                      soft: _isFarmer,
                       icon: Icons.person_outline_rounded,
                       color: AppColors.primary,
                       title: 'Edit Profil',
@@ -165,16 +173,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           profile: _profile ?? {}, avatarUrl: _avatarUrl)),
                     ),
                     _MenuTile(
+                      soft: _isFarmer,
                       icon: Icons.location_on_outlined,
                       color: AppColors.secondary,
-                      title: 'Alamat Pengiriman',
+                      title: _isFarmer ? 'Alamat Kebun' : 'Alamat Pengiriman',
                       subtitle: _address.isEmpty
-                          ? 'Belum diatur — dipakai saat checkout'
+                          ? (_isFarmer
+                              ? 'Belum diatur'
+                              : 'Belum diatur — dipakai saat checkout')
                           : _address,
                       onTap: () =>
                           _openSheet(AddressSheet(current: _address)),
                     ),
                     _MenuTile(
+                      soft: _isFarmer,
                       icon: Icons.lock_outline_rounded,
                       color: AppColors.info,
                       title: 'Ubah Kata Sandi',
@@ -184,6 +196,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const SizedBox(height: 20),
                     _sectionLabel('LAINNYA'),
                     _MenuTile(
+                      soft: _isFarmer,
                       icon: Icons.help_outline_rounded,
                       color: AppColors.preOrderPurple,
                       title: 'Pusat Bantuan',
@@ -191,6 +204,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       onTap: () => _openSheet(const _HelpSheet()),
                     ),
                     _MenuTile(
+                      soft: _isFarmer,
                       icon: Icons.info_outline_rounded,
                       color: AppColors.textSecondary,
                       title: 'Tentang Aplikasi',
@@ -199,6 +213,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     ),
                     const SizedBox(height: 20),
                     _MenuTile(
+                      soft: _isFarmer,
                       icon: Icons.logout_rounded,
                       color: AppColors.danger,
                       title: 'Keluar',
@@ -222,13 +237,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [AppColors.primaryDark, AppColors.primary],
         ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(28)),
+        // Petani: tekstur sawah yang sama dengan header Beranda, ditint hijau.
+        image: _isFarmer
+            ? const DecorationImage(
+                image: AssetImage('assets/images/farmer_banner.png'),
+                fit: BoxFit.cover,
+                colorFilter: ColorFilter.mode(Color(0xD000441B), BlendMode.srcOver),
+              )
+            : null,
+        borderRadius: const BorderRadius.vertical(bottom: Radius.circular(28)),
       ),
       child: SafeArea(
         bottom: false,
@@ -292,11 +315,17 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   color: Colors.white.withValues(alpha: 0.18),
                   borderRadius: BorderRadius.circular(20),
                 ),
-                child: Text(_role,
-                    style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if (_isFarmer) ...[
+                    const Icon(Icons.eco_rounded, size: 14, color: Colors.white),
+                    const SizedBox(width: 5),
+                  ],
+                  Text(_isFarmer ? 'Petani · Penjual' : _role,
+                      style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white)),
+                ]),
               ),
             ],
           ),
@@ -306,11 +335,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   Widget _buildStatsRow() {
-    final stats = [
-      ('$_totalOrders', 'Pesanan', Icons.receipt_long_rounded),
-      ('$_points', 'Poin', Icons.stars_rounded),
-      ('$_reviews', 'Ulasan', Icons.rate_review_rounded),
-    ];
+    final List<(String, String, IconData)> stats;
+    if (_isFarmer) {
+      final v = ref.watch(farmerVoiceProvider);
+      stats = [
+        ('${v.products.length}', 'Produk', Icons.inventory_2_rounded),
+        ('${v.orders.length}', 'Pesanan', Icons.receipt_long_rounded),
+        ('${v.orders.where((o) => o.status == OrderStatus.selesai).length}', 'Selesai', Icons.task_alt_rounded),
+      ];
+    } else {
+      stats = [
+        ('$_totalOrders', 'Pesanan', Icons.receipt_long_rounded),
+        ('$_points', 'Poin', Icons.stars_rounded),
+        ('$_reviews', 'Ulasan', Icons.rate_review_rounded),
+      ];
+    }
     return Row(
       children: [
         for (var i = 0; i < stats.length; i++) ...[
@@ -318,11 +357,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
           Expanded(
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 14),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppColors.border),
-              ),
+              decoration: _isFarmer
+                  ? sellerCard()
+                  : BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.border),
+                    ),
               child: Column(
                 children: [
                   Icon(stats[i].$3, color: AppColors.primary, size: 20),
@@ -369,9 +410,11 @@ class _MenuTile extends StatelessWidget {
   final String? subtitle;
   final Color? titleColor;
   final bool showChevron;
+  final bool soft;
   final VoidCallback onTap;
 
   const _MenuTile({
+    this.soft = false,
     required this.icon,
     required this.color,
     required this.title,
@@ -385,6 +428,7 @@ class _MenuTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
+      decoration: soft ? sellerCard(radius: 16) : null,
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -394,7 +438,7 @@ class _MenuTile extends StatelessWidget {
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.border),
+              border: soft ? null : Border.all(color: AppColors.border),
             ),
             padding:
                 const EdgeInsets.symmetric(horizontal: 14, vertical: 13),

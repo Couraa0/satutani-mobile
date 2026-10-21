@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/services/order_service.dart';
 import '../../../../data/models/farmer_order.dart';
 import '../../../../data/mock/orders_mock.dart' show OrderStatus;
 import '../../../../presentation/widgets/status_badge.dart';
+import '../../../widgets/seller_ui.dart';
 import 'contact_courier_screen.dart';
+
+const _monthsShort = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 
 class FarmerOrdersScreen extends StatefulWidget {
   const FarmerOrdersScreen({super.key});
@@ -12,17 +17,15 @@ class FarmerOrdersScreen extends StatefulWidget {
   State<FarmerOrdersScreen> createState() => _FarmerOrdersScreenState();
 }
 
-class _FarmerOrdersScreenState extends State<FarmerOrdersScreen>
-    with TickerProviderStateMixin {
-  late TabController _tab;
+class _FarmerOrdersScreenState extends State<FarmerOrdersScreen> {
   final _tabs = ['Semua', 'Menunggu', 'Dikonfirmasi', 'Dipanen', 'Dikirim', 'Selesai'];
+  int _tab = 0;
 
   late Future<List<FarmerOrder>> _future;
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: _tabs.length, vsync: this);
     _future = _load();
   }
 
@@ -34,12 +37,6 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen>
   void _reload() => setState(() {
         _future = _load();
       });
-
-  @override
-  void dispose() {
-    _tab.dispose();
-    super.dispose();
-  }
 
   List<FarmerOrder> _ordersForTab(List<FarmerOrder> all, int i) {
     if (i == 0) return all;
@@ -67,52 +64,86 @@ class _FarmerOrdersScreenState extends State<FarmerOrdersScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('Pesanan'),
-        bottom: TabBar(
-          controller: _tab,
-          isScrollable: true,
-          tabAlignment: TabAlignment.start,
-          indicatorColor: Colors.white,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white70,
-          tabs: _tabs.map((t) => Tab(text: t)).toList(),
-        ),
-      ),
+      backgroundColor: sellerCanvas,
       body: FutureBuilder<List<FarmerOrder>>(
         future: _future,
         builder: (context, snap) {
-          if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snap.hasError) {
-            return _ErrorState(message: '${snap.error}', onRetry: _reload);
-          }
+          final loading = snap.connectionState == ConnectionState.waiting;
           final all = snap.data ?? [];
-          return TabBarView(
-            controller: _tab,
-            children: List.generate(_tabs.length, (i) {
-              final list = _ordersForTab(all, i);
-              if (list.isEmpty) {
-                return const Center(
-                  child: Text('Tidak ada pesanan',
-                      style: TextStyle(color: AppColors.textSecondary)),
-                );
-              }
-              return RefreshIndicator(
-                onRefresh: () async => _reload(),
-                child: ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: list.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (_, j) => _FarmerOrderCard(
-                    order: list[j],
-                    onChangeStatus: _changeStatus,
+          final needAction = all.where((o) => o.status == OrderStatus.menunggu).length;
+          final list = _ordersForTab(all, _tab);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SellerPageHeader(
+                title: 'Pesanan',
+                subtitle: loading
+                    ? 'Memuat pesanan…'
+                    : needAction > 0
+                        ? '$needAction pesanan menunggu konfirmasi Anda'
+                        : 'Semua pesanan sudah ditangani',
+                trailing: IconButton(
+                  onPressed: _reload,
+                  tooltip: 'Muat ulang',
+                  style: IconButton.styleFrom(backgroundColor: Colors.white),
+                  icon: const Icon(Icons.refresh_rounded, color: AppColors.textPrimary),
+                ),
+              ),
+              SizedBox(
+                height: 40,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  itemCount: _tabs.length,
+                  itemBuilder: (_, i) => SellerFilterPill(
+                    label: _tabs[i],
+                    count: loading ? null : _ordersForTab(all, i).length,
+                    selected: _tab == i,
+                    onTap: () => setState(() => _tab = i),
                   ),
                 ),
-              );
-            }),
+              ),
+              const SizedBox(height: 6),
+              Expanded(
+                child: Builder(builder: (_) {
+                  if (loading) {
+                    return const SellerSkeletonList(itemHeight: 190, count: 3);
+                  }
+                  if (snap.hasError) {
+                    return SellerErrorState(message: '${snap.error}', onRetry: _reload);
+                  }
+                  if (list.isEmpty) {
+                    return Center(
+                      child: SellerEmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'Tidak ada pesanan',
+                        subtitle: _tab == 0
+                            ? 'Pesanan dari pembeli akan muncul di sini.'
+                            : 'Belum ada pesanan berstatus "${_tabs[_tab]}".',
+                      ),
+                    );
+                  }
+                  return RefreshIndicator(
+                    color: AppColors.primary,
+                    onRefresh: () async => _reload(),
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 10, 16, 110),
+                      itemCount: list.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (_, j) => _FarmerOrderCard(
+                        key: ValueKey(list[j].id),
+                        order: list[j],
+                        onChangeStatus: _changeStatus,
+                      )
+                          .animate(delay: (50 * j.clamp(0, 6)).ms)
+                          .fadeIn(duration: 320.ms)
+                          .slideY(begin: 0.08, curve: Curves.easeOutCubic),
+                    ),
+                  );
+                }),
+              ),
+            ],
           );
         },
       ),
@@ -124,51 +155,99 @@ class _FarmerOrderCard extends StatelessWidget {
   final FarmerOrder order;
   final Future<void> Function(FarmerOrder order, String backendStatus)
       onChangeStatus;
-  const _FarmerOrderCard({required this.order, required this.onChangeStatus});
+  const _FarmerOrderCard({super.key, required this.order, required this.onChangeStatus});
 
-  String _fmt(double v) => v
-      .toStringAsFixed(0)
-      .replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+  String get _shortId {
+    final id = order.id;
+    return (id.length > 8 ? id.substring(0, 8) : id).toUpperCase();
+  }
+
+  String get _date {
+    final d = order.createdAt;
+    final hh = d.hour.toString().padLeft(2, '0');
+    final mm = d.minute.toString().padLeft(2, '0');
+    return '${d.day} ${_monthsShort[d.month - 1]} · $hh:$mm';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final initial = order.consumerName.isNotEmpty ? order.consumerName[0].toUpperCase() : '?';
+    final hasActions = order.status != OrderStatus.selesai && order.status != OrderStatus.dibatalkan;
+
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 8)],
-      ),
+      padding: const EdgeInsets.all(14),
+      decoration: sellerCard(),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Text('#${order.id}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+        // Pembeli + status
+        Row(children: [
+          CircleAvatar(
+            radius: 19,
+            backgroundColor: AppColors.primaryLight,
+            child: Text(initial, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(order.consumerName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14, color: AppColors.textPrimary)),
+              const SizedBox(height: 1),
+              Text('#$_shortId · $_date',
+                  style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+            ]),
+          ),
           StatusBadge(status: order.status),
         ]),
-        const SizedBox(height: 6),
-        Row(children: [
-          const Icon(Icons.person_outline_rounded, size: 14, color: AppColors.textSecondary),
-          const SizedBox(width: 4),
-          Expanded(
-            child: Text(
-              order.consumerPhone.isNotEmpty
-                  ? '${order.consumerName} · ${order.consumerPhone}'
-                  : order.consumerName,
-              style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+        const SizedBox(height: 12),
+        OrderProgressBar(status: order.status),
+        const SizedBox(height: 12),
+
+        // Ringkasan produk
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: sellerCanvas, borderRadius: BorderRadius.circular(14)),
+          child: Row(children: [
+            SellerProductImage(
+              url: order.productImageUrl.isNotEmpty ? order.productImageUrl : null,
+              name: order.productName,
+              width: 46,
+              height: 46,
+              radius: 11,
             ),
-          ),
-        ]),
-        const SizedBox(height: 6),
-        Text('• ${order.productName} × ${_fmt(order.quantity)} ${order.unit}',
-            style: const TextStyle(fontSize: 12)),
-        const Divider(height: 16),
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          Expanded(
-            child: Text('Total: Rp ${_fmt(order.total)}',
-                style: const TextStyle(
-                    fontWeight: FontWeight.w700, fontSize: 14, color: AppColors.primary)),
-          ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(order.productName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.textPrimary)),
+                const SizedBox(height: 2),
+                Text('${order.quantity.toStringAsFixed(0)} ${order.unit} × ${rupiah(order.pricePerUnit)}',
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.textSecondary)),
+              ]),
+            ),
+            Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+              const Text('Total', style: TextStyle(fontSize: 10.5, color: AppColors.textSecondary)),
+              Text(rupiah(order.total),
+                  style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 14, color: AppColors.primary)),
+            ]),
+          ]),
+        ),
+
+        if (order.consumerPhone.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Row(children: [
+            const Icon(Iconsax.call, size: 14, color: AppColors.textSecondary),
+            const SizedBox(width: 6),
+            Text(order.consumerPhone, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          ]),
+        ],
+
+        if (hasActions) ...[
+          const SizedBox(height: 12),
           _ActionButtons(order: order, onChangeStatus: onChangeStatus),
-        ]),
+        ],
       ]),
     );
   }
@@ -180,88 +259,82 @@ class _ActionButtons extends StatelessWidget {
       onChangeStatus;
   const _ActionButtons({required this.order, required this.onChangeStatus});
 
+  static final _shape = RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
+
+  Widget _primary(String label, IconData icon, VoidCallback onPressed, {Color color = AppColors.primary}) {
+    return ElevatedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 17, color: Colors.white),
+      label: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white)),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        minimumSize: const Size(0, 42),
+        shape: _shape,
+        elevation: 0,
+      ),
+    );
+  }
+
+  Widget _secondary(String label, IconData icon, VoidCallback onPressed, {Color color = AppColors.textPrimary}) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 17, color: color),
+      label: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: color,
+        side: BorderSide(color: color.withValues(alpha: 0.35)),
+        minimumSize: const Size(0, 42),
+        shape: _shape,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     switch (order.status) {
       case OrderStatus.menunggu:
-        return Row(mainAxisSize: MainAxisSize.min, children: [
-          OutlinedButton(
-            onPressed: () => onChangeStatus(order, 'cancelled'),
-            style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.danger,
-                side: const BorderSide(color: AppColors.danger),
-                minimumSize: const Size(56, 34),
-                padding: const EdgeInsets.symmetric(horizontal: 10)),
-            child: const Text('Tolak', style: TextStyle(fontSize: 12)),
+        return Row(children: [
+          Expanded(
+            child: _secondary('Tolak', Iconsax.close_circle, () => onChangeStatus(order, 'cancelled'),
+                color: AppColors.danger),
           ),
-          const SizedBox(width: 8),
-          ElevatedButton(
-            onPressed: () => onChangeStatus(order, 'confirmed'),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                minimumSize: const Size(80, 34),
-                padding: const EdgeInsets.symmetric(horizontal: 12)),
-            child: const Text('Konfirmasi', style: TextStyle(fontSize: 12, color: Colors.white)),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: _primary('Konfirmasi', Iconsax.tick_circle, () => onChangeStatus(order, 'confirmed')),
           ),
         ]);
       case OrderStatus.dikonfirmasi:
-        return ElevatedButton(
-          onPressed: () => onChangeStatus(order, 'harvesting'),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success, minimumSize: const Size(120, 34)),
-          child: const Text('Tandai Dipanen', style: TextStyle(fontSize: 12, color: Colors.white)),
+        return SizedBox(
+          width: double.infinity,
+          child: _primary('Tandai Dipanen', Icons.agriculture_rounded, () => onChangeStatus(order, 'harvesting')),
         );
       case OrderStatus.dipanen:
-        return Row(mainAxisSize: MainAxisSize.min, children: [
-          TextButton(
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => ContactCourierScreen(order: order)),
+        return Row(children: [
+          Expanded(
+            child: _secondary(
+              'Kurir',
+              Iconsax.truck_fast,
+              () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => ContactCourierScreen(order: order)),
+              ),
             ),
-            style: TextButton.styleFrom(
-                minimumSize: const Size(40, 34),
-                padding: const EdgeInsets.symmetric(horizontal: 8)),
-            child: const Text('Kurir', style: TextStyle(fontSize: 12)),
           ),
-          const SizedBox(width: 4),
-          ElevatedButton(
-            onPressed: () => onChangeStatus(order, 'shipped'),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.info, minimumSize: const Size(100, 34)),
-            child: const Text('Tandai Dikirim', style: TextStyle(fontSize: 12, color: Colors.white)),
+          const SizedBox(width: 10),
+          Expanded(
+            flex: 2,
+            child: _primary('Tandai Dikirim', Iconsax.send_2, () => onChangeStatus(order, 'shipped'),
+                color: AppColors.info),
           ),
         ]);
       case OrderStatus.dikirim:
-        return ElevatedButton(
-          onPressed: () => onChangeStatus(order, 'completed'),
-          style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary, minimumSize: const Size(120, 34)),
-          child: const Text('Tandai Selesai', style: TextStyle(fontSize: 12, color: Colors.white)),
+        return SizedBox(
+          width: double.infinity,
+          child: _primary('Tandai Selesai', Iconsax.task_square, () => onChangeStatus(order, 'completed')),
         );
       default:
         return const SizedBox.shrink();
     }
-  }
-}
-
-class _ErrorState extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-  const _ErrorState({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const Icon(Icons.error_outline_rounded, size: 48, color: AppColors.textSecondary),
-          const SizedBox(height: 12),
-          Text(message, textAlign: TextAlign.center, style: const TextStyle(color: AppColors.textSecondary)),
-          const SizedBox(height: 16),
-          ElevatedButton(onPressed: onRetry, child: const Text('Coba Lagi')),
-        ]),
-      ),
-    );
   }
 }

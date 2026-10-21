@@ -49,6 +49,29 @@ void main() async {
 class SatuTaniApp extends StatelessWidget {
   const SatuTaniApp({super.key});
 
+  static final Map<String, WidgetBuilder> _routes = {
+    '/splash':      (_) => const SplashScreen(),
+    '/onboarding':  (_) => const OnboardingScreen(),
+    '/role-select': (_) => const RoleSelectScreen(),
+    '/login':       (_) => const LoginScreen(),
+    '/forgot-password': (_) => const ForgotPasswordScreen(),
+    '/new-password':    (_) => const NewPasswordScreen(),
+    '/otp-verify':      (_) => const OtpScreen(),
+    '/otp-success':     (_) => const OtpSuccessScreen(),
+    // Consumer
+    '/':            (_) => const ConsumerNavigation(),
+    '/explore':     (_) => const ExploreScreen(),
+    '/cart':        (_) => const CartScreen(),
+    '/checkout':    (_) => const CheckoutScreen(),
+    '/orders':      (_) => const OrdersScreen(),
+    '/order-tracking': (_) => const OrderTrackingScreen(),
+    '/chat':        (_) => const ChatScreen(),
+    // Farmer
+    '/farmer-home': (_) => const FarmerNavigation(),
+    // Admin
+    '/admin-home':  (_) => const AdminNavigation(),
+  };
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -85,28 +108,16 @@ class SatuTaniApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       initialRoute: '/splash',
-      routes: {
-        '/splash':      (_) => const SplashScreen(),
-        '/onboarding':  (_) => const OnboardingScreen(),
-        '/role-select': (_) => const RoleSelectScreen(),
-        '/login':       (_) => const LoginScreen(),
-        '/forgot-password': (_) => const ForgotPasswordScreen(),
-        '/new-password':    (_) => const NewPasswordScreen(),
-        '/otp-verify':      (_) => const OtpScreen(),
-        '/otp-success':     (_) => const OtpSuccessScreen(),
-        // Consumer
-        '/':            (_) => const ConsumerNavigation(),
-        '/explore':     (_) => const ExploreScreen(),
-        '/cart':        (_) => const CartScreen(),
-        '/checkout':    (_) => const CheckoutScreen(),
-        '/orders':      (_) => const OrdersScreen(),
-        '/order-tracking': (_) => const OrderTrackingScreen(),
-        '/chat':        (_) => const ChatScreen(),
-        // Farmer
-        '/farmer-home': (_) => const FarmerNavigation(),
-        // Admin
-        '/admin-home':  (_) => const AdminNavigation(),
-      },
+      routes: _routes,
+      // Web deep link (mis. #/farmer-home setelah redirect login) default-nya
+      // menumpuk '/' (beranda Pembeli) di bawahnya → muncul tombol back ke Pembeli.
+      // Bangun hanya rute yang diminta.
+      onGenerateInitialRoutes: (name) => [
+        MaterialPageRoute(
+          builder: _routes[name] ?? _routes['/splash']!,
+          settings: RouteSettings(name: _routes.containsKey(name) ? name : '/splash'),
+        ),
+      ],
       onGenerateRoute: (settings) {
         if (settings.name == '/product-detail') {
           return MaterialPageRoute(

@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/colors.dart';
+import '../../../../core/services/auth_service.dart';
+import '../../../../core/services/user_service.dart';
 import '../../../../data/models/farmer_order.dart';
 import '../../../../data/models/product_model.dart';
 import '../../../../data/mock/orders_mock.dart' show OrderStatus;
 import '../../../../presentation/widgets/status_badge.dart';
+import '../../../widgets/seller_ui.dart';
 import '../../../providers/farmer_voice_provider.dart';
 import '../../../widgets/voice_hub/audio_waveform_widget.dart';
 import '../products/add_product_screen.dart';
@@ -14,7 +19,10 @@ import 'ai_price_check_screen.dart';
 import 'market_forecast_screen.dart';
 
 class FarmerHomeScreen extends ConsumerStatefulWidget {
-  const FarmerHomeScreen({super.key});
+  /// Pindah ke tab lain di FarmerNavigation (1 Produk, 2 Pesanan, 3 Pendapatan).
+  final ValueChanged<int>? onOpenTab;
+
+  const FarmerHomeScreen({super.key, this.onOpenTab});
 
   @override
   ConsumerState<FarmerHomeScreen> createState() => _FarmerHomeScreenState();
@@ -25,6 +33,32 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
   late AnimationController _headerAnimCtrl;
   late Animation<double> _headerFade;
 
+  // Bar ringkas yang muncul saat header menciut (header terbuka tetap seperti semula).
+  final _scrollCtrl = ScrollController();
+  final _collapsed = ValueNotifier(false);
+
+  // Nama pemegang "Kartu Petani" diambil dari profil DB (fallback metadata auth).
+  String? _holderName;
+
+  String get _cardHolder {
+    final user = AuthService.currentUser;
+    final meta = user?.userMetadata;
+    return _holderName ??
+        (meta?['full_name'] as String?) ??
+        (meta?['name'] as String?) ??
+        user?.email?.split('@').first ??
+        'Petani SatuTani';
+  }
+
+  /// 4 digit stabil dari user id, ditampilkan sebagai "ID Petani" tersamar.
+  String get _memberNo {
+    var h = 7;
+    for (final c in (AuthService.currentUser?.id ?? '').codeUnits) {
+      h = (h * 31 + c) % 10000;
+    }
+    return h.toString().padLeft(4, '0');
+  }
+
   @override
   void initState() {
     super.initState();
@@ -34,11 +68,21 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
     );
     _headerFade = CurvedAnimation(parent: _headerAnimCtrl, curve: Curves.easeOut);
     _headerAnimCtrl.forward();
+    UserService.getMyProfile().then((p) {
+      final n = p?['name'] as String?;
+      if (mounted && n != null && n.trim().isNotEmpty) setState(() => _holderName = n.trim());
+    });
+    _scrollCtrl.addListener(() {
+      final c = _scrollCtrl.offset > 120; // expandedHeight 220 - toolbar ≈ 164
+      if (c != _collapsed.value) _collapsed.value = c;
+    });
   }
 
   @override
   void dispose() {
     _headerAnimCtrl.dispose();
+    _scrollCtrl.dispose();
+    _collapsed.dispose();
     super.dispose();
   }
 
@@ -70,12 +114,15 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
         .where((o) => o.status != OrderStatus.selesai && o.status != OrderStatus.dibatalkan)
         .length;
 
+    final completedCount = orders.where((o) => o.status == OrderStatus.selesai).length;
+
     return Scaffold(
-      backgroundColor: AppColors.background,
+      backgroundColor: sellerCanvas,
       body: RefreshIndicator(
         onRefresh: () => ref.read(farmerVoiceProvider.notifier).loadDashboardData(),
         color: AppColors.primary,
         child: CustomScrollView(
+          controller: _scrollCtrl,
           physics: const BouncingScrollPhysics(),
           slivers: [
             // ── Sliver App Bar with Voice Assistant Hero Banner ────────────────
@@ -84,6 +131,32 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
               expandedHeight: 220,
               backgroundColor: AppColors.primary,
               elevation: 0,
+              automaticallyImplyLeading: false,
+              titleSpacing: 16,
+              title: ValueListenableBuilder<bool>(
+                valueListenable: _collapsed,
+                builder: (_, collapsed, __) => IgnorePointer(
+                  ignoring: !collapsed,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 220),
+                    opacity: collapsed ? 1 : 0,
+                    child: AnimatedSlide(
+                      duration: const Duration(milliseconds: 260),
+                      curve: Curves.easeOutCubic,
+                      offset: collapsed ? Offset.zero : const Offset(0, 0.4),
+                      child: _CollapsedHeaderBar(
+                        revenue: todayRevenue,
+                        activeOrders: activeOrdersCount,
+                        onTap: () => _scrollCtrl.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 450),
+                          curve: Curves.easeOutCubic,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
               flexibleSpace: FlexibleSpaceBar(
                 collapseMode: CollapseMode.parallax,
                 background: Stack(
@@ -217,68 +290,53 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── Voice Confirmation / Notification Banner ─────────────────
-                  if (voiceState.notificationMessage != null) ...[
+                  if (voiceState.notificationMessage != null)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                       child: Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFE8F5E9),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.green.shade400),
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                        decoration: sellerCard(radius: 14),
                         child: Row(
                           children: [
-                            const Icon(Icons.check_circle_rounded, color: Colors.green, size: 20),
-                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
+                              child: const Icon(Icons.check_rounded, color: AppColors.primary, size: 16),
+                            ),
+                            const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 voiceState.notificationMessage!,
-                                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green),
+                                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
                               ),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ],
 
                   // ── Live Voice Audio Response Box (TTS Mirror Output) ────────
-                  if (voiceState.speechResponse.isNotEmpty) ...[
+                  if (voiceState.speechResponse.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                       child: Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF00441b), Color(0xFF005C25)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
+                          color: AppColors.primaryDark,
                           borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppColors.primary.withOpacity(0.3),
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
-                            ),
-                          ],
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Row(
-                                  children: const [
-                                    Icon(Icons.volume_up_rounded, color: Colors.amberAccent, size: 18),
-                                    SizedBox(width: 6),
-                                    Text(
-                                      'Respon Suara AI (TTS Audio)',
-                                      style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                                    ),
-                                  ],
+                                const Icon(Icons.volume_up_rounded, color: Colors.amberAccent, size: 18),
+                                const SizedBox(width: 6),
+                                const Expanded(
+                                  child: Text(
+                                    'Respon Asisten Suara',
+                                    style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w700),
+                                  ),
                                 ),
                                 AudioWaveformWidget(state: voiceState.voiceState, height: 20, primaryColor: Colors.amberAccent),
                               ],
@@ -286,55 +344,36 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                             const SizedBox(height: 8),
                             Text(
                               voiceState.speechResponse,
-                              style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.4, fontWeight: FontWeight.w600),
+                              style: const TextStyle(color: Colors.white, fontSize: 13.5, height: 1.45, fontWeight: FontWeight.w600),
                             ),
                           ],
                         ),
                       ),
                     ),
-                  ],
 
-                  // ── Quick Voice Command Shortcuts Bar ──────────────────────
-                  const SizedBox(height: 20),
-                  _SectionTitle(title: 'Pintasan Suara Cepat', icon: Icons.record_voice_over_rounded),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    height: 40,
-                    child: ListView(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      children: [
-                        _VoiceShortcutChip(
-                          label: '➕ Tambah Wortel 70kg',
-                          onTap: () => ref
-                              .read(farmerVoiceProvider.notifier)
-                              .processSpeech("Tolong saya ingin memasukan wortel 70 kg ke produk saya."),
-                        ),
-                        _VoiceShortcutChip(
-                          label: '➕ Tambah Cabai 35kg',
-                          onTap: () => ref
-                              .read(farmerVoiceProvider.notifier)
-                              .processSpeech("Tolong tambahkan cabai merah 35 kg harga 38000"),
-                        ),
-                        _VoiceShortcutChip(
-                          label: '📊 Cek Penjualan Minggu Ini',
-                          onTap: () => ref
-                              .read(farmerVoiceProvider.notifier)
-                              .processSpeech("Cek riwayat penjualan saya minggu ini"),
-                        ),
-                        _VoiceShortcutChip(
-                          label: '🐛 Konsultasi Hama',
-                          onTap: () => ref
-                              .read(farmerVoiceProvider.notifier)
-                              .processSpeech("Hama apa yang perlu diwaspadai musim ini?"),
-                        ),
-                      ],
+                  // ── Ringkasan Pendapatan ─────────────────────────────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                    child: _FarmerCard(
+                      revenue: isLoading ? null : todayRevenue,
+                      holderName: _cardHolder,
+                      memberNo: _memberNo,
+                      onTap: () => widget.onOpenTab?.call(3),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: _StatsStrip(
+                      activeOrders: activeOrdersCount,
+                      completedCount: completedCount,
+                      productCount: products.length,
+                      onOpenTab: widget.onOpenTab,
                     ),
                   ),
 
-                  // ── Fitur AI & Akses Cepat ───────────────────────────────────────
-                  const SizedBox(height: 20),
-                  _SectionTitle(title: 'Fitur AI & Akses Cepat', icon: Icons.psychology_rounded),
+                  // ── Fitur AI & Akses Cepat ───────────────────────────────────
+                  const SizedBox(height: 28),
+                  const SellerSectionTitle(title: 'Fitur AI & Akses Cepat', subtitle: 'Bantu tentukan harga & kelola stok'),
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -342,10 +381,9 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                       children: [
                         Expanded(
                           child: _QuickAction(
-                            icon: Icons.psychology_rounded,
+                            icon: Iconsax.tag_2_copy,
                             label: 'Cek Harga AI',
-                            color: AppColors.info,
-                            bgColor: const Color(0xFFE3F2FD),
+                            color: const Color(0xFF1E6FD9),
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const AiPriceCheckScreen()),
@@ -355,10 +393,9 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                         const SizedBox(width: 10),
                         Expanded(
                           child: _QuickAction(
-                            icon: Icons.analytics_rounded,
+                            icon: Iconsax.status_up_copy,
                             label: 'Prediksi Pasar',
-                            color: AppColors.secondary,
-                            bgColor: AppColors.secondaryLight,
+                            color: const Color(0xFFE08A00),
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const MarketForecastScreen()),
@@ -368,10 +405,9 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                         const SizedBox(width: 10),
                         Expanded(
                           child: _QuickAction(
-                            icon: Icons.smart_toy_rounded,
+                            icon: Iconsax.messages_2_copy,
                             label: 'AI Chat Bot',
-                            color: AppColors.primary,
-                            bgColor: AppColors.primaryLight,
+                            color: AppColors.primaryMid,
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const FarmerAiChatScreen()),
@@ -381,10 +417,9 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                         const SizedBox(width: 10),
                         Expanded(
                           child: _QuickAction(
-                            icon: Icons.add_box_rounded,
+                            icon: Iconsax.box_add_copy,
                             label: 'Tambah Manual',
-                            color: Colors.teal,
-                            bgColor: const Color(0xFFE0F2F1),
+                            color: const Color(0xFF00897B),
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const AddProductScreen()),
@@ -395,59 +430,116 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
                     ),
                   ),
 
-                  // ── Overview Metrics Card ──────────────────────────────────
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                    child: _RevenueCard(revenue: isLoading ? null : todayRevenue, activeOrders: activeOrdersCount),
+                  // ── Pintasan Suara ───────────────────────────────────────────
+                  const SizedBox(height: 28),
+                  const SellerSectionTitle(title: 'Pintasan Suara', subtitle: 'Ketuk untuk menjalankan perintah'),
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 42,
+                    child: ListView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      children: [
+                        _VoiceShortcutChip(
+                          icon: Iconsax.add_square,
+                          label: 'Tambah Wortel 70kg',
+                          onTap: () => ref
+                              .read(farmerVoiceProvider.notifier)
+                              .processSpeech("Tolong saya ingin memasukan wortel 70 kg ke produk saya."),
+                        ),
+                        _VoiceShortcutChip(
+                          icon: Iconsax.add_square,
+                          label: 'Tambah Cabai 35kg',
+                          onTap: () => ref
+                              .read(farmerVoiceProvider.notifier)
+                              .processSpeech("Tolong tambahkan cabai merah 35 kg harga 38000"),
+                        ),
+                        _VoiceShortcutChip(
+                          icon: Iconsax.chart_2,
+                          label: 'Cek Penjualan Minggu Ini',
+                          onTap: () => ref
+                              .read(farmerVoiceProvider.notifier)
+                              .processSpeech("Cek riwayat penjualan saya minggu ini"),
+                        ),
+                        _VoiceShortcutChip(
+                          icon: Iconsax.danger,
+                          label: 'Konsultasi Hama',
+                          onTap: () => ref
+                              .read(farmerVoiceProvider.notifier)
+                              .processSpeech("Hama apa yang perlu diwaspadai musim ini?"),
+                        ),
+                      ],
+                    ),
                   ),
 
-                  // ── Real-Time Visual Mirror: Products (Voice Management) ──
-                  const SizedBox(height: 24),
-                  _SectionTitle(
-                    title: 'Mirror Stok Produk (${products.length})',
-                    icon: Icons.inventory_2_rounded,
-                    subtitle: 'Ter-update otomatis via Suara',
+                  // ── Stok Produk (mirror real-time) ───────────────────────────
+                  const SizedBox(height: 28),
+                  SellerSectionTitle(
+                    title: 'Stok Produk (${products.length})',
+                    subtitle: 'Ter-update otomatis via suara',
+                    actionLabel: 'Kelola',
+                    onAction: () => widget.onOpenTab?.call(1),
                   ),
                   const SizedBox(height: 12),
-
                   if (isLoading)
-                    const Center(child: CircularProgressIndicator(color: AppColors.primary))
+                    const SizedBox(
+                      height: 206,
+                      child: SellerSkeletonList(count: 1, itemHeight: 196, padding: EdgeInsets.symmetric(horizontal: 16)),
+                    )
                   else if (products.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(20),
-                      child: Text('Belum ada produk. Katakan perintah suara untuk menambah!', textAlign: TextAlign.center),
+                    const Center(
+                      child: SellerEmptyState(
+                        icon: Icons.inventory_2_outlined,
+                        title: 'Belum ada produk',
+                        subtitle: 'Ucapkan perintah suara atau ketuk Tambah Manual untuk mulai berjualan.',
+                      ),
                     )
                   else
-                    ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: products.length,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemBuilder: (context, idx) {
-                        final p = products[idx];
-                        return _ProductMirrorCard(product: p);
-                      },
+                    SizedBox(
+                      height: 206,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+                        itemCount: products.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 12),
+                        itemBuilder: (_, i) => _ProductMirrorCard(product: products[i]),
+                      ),
                     ),
 
-                  // ── Real-Time Visual Mirror: Orders History ──────────────
-                  const SizedBox(height: 24),
-                  _SectionTitle(
-                    title: 'Histori Transaksi & Pesanan',
-                    icon: Icons.receipt_long_rounded,
+                  // ── Pesanan Terbaru ──────────────────────────────────────────
+                  const SizedBox(height: 18),
+                  SellerSectionTitle(
+                    title: 'Pesanan Terbaru',
                     actionLabel: 'Lihat Semua',
+                    onAction: () => widget.onOpenTab?.call(2),
                   ),
                   const SizedBox(height: 12),
-
                   if (orders.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-                      child: Text('Belum ada riwayat pesanan.', style: TextStyle(color: AppColors.textSecondary)),
+                    const Center(
+                      child: SellerEmptyState(
+                        icon: Icons.receipt_long_outlined,
+                        title: 'Belum ada pesanan',
+                        subtitle: 'Pesanan dari pembeli akan muncul di sini.',
+                      ),
                     )
                   else
-                    ...orders.take(3).map((o) => _OrderCard(order: o)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Container(
+                        decoration: sellerCard(),
+                        child: Column(
+                          children: [
+                            for (final (i, o) in orders.take(3).indexed) ...[
+                              if (i > 0) const Divider(height: 1, indent: 70, endIndent: 16, color: Color(0xFFEFF2EE)),
+                              _OrderRow(order: o, onTap: () => widget.onOpenTab?.call(2)),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
 
-                  const SizedBox(height: 110), // Spacing for central Floating Voice Hub
-                ],
+                  const SizedBox(height: 110), // Spacing for Floating Voice Hub
+                ].animate(interval: 45.ms).fadeIn(duration: 380.ms).slideY(begin: 0.08, curve: Curves.easeOutCubic),
               ),
             ),
           ],
@@ -458,122 +550,356 @@ class _FarmerHomeScreenState extends ConsumerState<FarmerHomeScreen>
 }
 
 class _VoiceShortcutChip extends StatelessWidget {
+  final IconData icon;
   final String label;
   final VoidCallback onTap;
 
-  const _VoiceShortcutChip({required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      child: ActionChip(
-        label: Text(
-          label,
-          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primary),
-        ),
-        backgroundColor: AppColors.primaryLight,
-        side: BorderSide(color: AppColors.primary.withOpacity(0.3)),
-        onPressed: onTap,
-      ),
-    );
-  }
-}
-
-class _SectionTitle extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final String? subtitle;
-  final String? actionLabel;
-
-  const _SectionTitle({required this.title, required this.icon, this.subtitle, this.actionLabel});
+  const _VoiceShortcutChip({required this.icon, required this.label, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.only(right: 8),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(6, 6, 14, 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(color: const Color(0xFFE3E8E1)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(color: AppColors.primaryLight, shape: BoxShape.circle),
+                  child: const Icon(Iconsax.microphone_2_copy, color: AppColors.primary, size: 15),
+                ),
+                const SizedBox(width: 8),
+                Icon(icon, size: 15, color: AppColors.textSecondary),
+                const SizedBox(width: 3),
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.textPrimary),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "Kartu Petani" — kartu pendapatan bergaya kartu kredit dengan identitas SatuTani.
+class _FarmerCard extends StatelessWidget {
+  final double? revenue;
+  final String holderName;
+  final String memberNo;
+  final VoidCallback onTap;
+
+  const _FarmerCard({this.revenue, required this.holderName, required this.memberNo, required this.onTap});
+
+  static const _gold = Color(0xFFE9C46A);
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AspectRatio(
+        aspectRatio: 1.586, // rasio kartu ISO ID-1 (ukuran kartu kredit)
+        child: FarmerCardSurface(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Penerbit kartu
+                    Row(
+                      children: [
+                        ClipRect(
+                          child: Align(
+                            alignment: const Alignment(0, -0.15),
+                            widthFactor: 0.5,
+                            heightFactor: 0.66,
+                            child: Image.asset('assets/images/logo putih.png', width: 60),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Image.asset(
+                          'assets/images/font putih.webp',
+                          height: 15,
+                          errorBuilder: (_, __, ___) => const Text('SatuTani',
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w800)),
+                        ),
+                        const Spacer(),
+                        const Text(
+                          'KARTU PETANI',
+                          style: TextStyle(color: _gold, fontSize: 10, fontWeight: FontWeight.w800, letterSpacing: 1.6),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        const _EmvChip(),
+                        const SizedBox(width: 10),
+                        Icon(Icons.contactless_outlined, color: Colors.white.withValues(alpha: 0.75), size: 22),
+                        const Spacer(),
+                        Text('Detail',
+                            style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.85), fontSize: 12, fontWeight: FontWeight.w700)),
+                        Icon(Icons.chevron_right_rounded, color: Colors.white.withValues(alpha: 0.85), size: 18),
+                      ],
+                    ),
+                    const Spacer(),
+                    const Text('Pendapatan Selesai',
+                        style: TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 2),
+                    revenue == null
+                        ? const SizedBox(
+                            height: 34,
+                            width: 120,
+                            child: Center(
+                              child: LinearProgressIndicator(color: Colors.white38, backgroundColor: Colors.transparent),
+                            ),
+                          )
+                        : FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: CountUpRupiah(
+                              value: revenue!,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 28,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.6,
+                                fontFeatures: [FontFeature.tabularFigures()],
+                                shadows: [Shadow(color: Colors.black26, offset: Offset(0, 1), blurRadius: 2)],
+                              ),
+                            ),
+                          ),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(child: _CardField(label: 'PEMEGANG KARTU', value: holderName.toUpperCase())),
+                        const SizedBox(width: 10),
+                        _CardField(label: 'ID PETANI', value: '•••• $memberNo'),
+                        const SizedBox(width: 12),
+                        const _CardSeal(),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+        ),
+      ),
+    ).animate().shimmer(delay: 700.ms, duration: 1600.ms, color: Colors.white.withValues(alpha: 0.18));
+  }
+}
+
+class _CardField extends StatelessWidget {
+  final String label;
+  final String value;
+  const _CardField({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(label,
+            style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.55), fontSize: 8.5, fontWeight: FontWeight.w700, letterSpacing: 1.2)),
+        const SizedBox(height: 2),
+        Text(value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700, letterSpacing: 1.0)),
+      ],
+    );
+  }
+}
+
+/// Chip kontak emas ala kartu EMV.
+class _EmvChip extends StatelessWidget {
+  const _EmvChip();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 40,
+      height: 30,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(6),
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF7E7A8), Color(0xFFD4A94F), Color(0xFFF0D388)],
+        ),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 2, offset: const Offset(0, 1))],
+      ),
+      child: const CustomPaint(painter: _ChipLinesPainter()),
+    );
+  }
+}
+
+class _ChipLinesPainter extends CustomPainter {
+  const _ChipLinesPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = const Color(0x66704A12)
+      ..strokeWidth = 0.9
+      ..style = PaintingStyle.stroke;
+    final w = size.width, h = size.height;
+    canvas.drawLine(Offset(0, h / 3), Offset(w * 0.35, h / 3), p);
+    canvas.drawLine(Offset(w * 0.65, h / 3), Offset(w, h / 3), p);
+    canvas.drawLine(Offset(0, h * 2 / 3), Offset(w * 0.35, h * 2 / 3), p);
+    canvas.drawLine(Offset(w * 0.65, h * 2 / 3), Offset(w, h * 2 / 3), p);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Rect.fromLTRB(w * 0.35, h * 0.2, w * 0.65, h * 0.8), const Radius.circular(3)),
+      p,
+    );
+    canvas.drawLine(Offset(w / 2, 0), Offset(w / 2, h * 0.2), p);
+    canvas.drawLine(Offset(w / 2, h * 0.8), Offset(w / 2, h), p);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// Segel emas penanda jaringan kartu (milik SatuTani sendiri, bukan logo jaringan nyata).
+class _CardSeal extends StatelessWidget {
+  const _CardSeal();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 34,
+      height: 34,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: const LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFF7E7A8), Color(0xFFD4A94F)],
+        ),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.35)),
+      ),
+      child: const Icon(Icons.eco_rounded, color: AppColors.primaryDark, size: 18),
+    );
+  }
+}
+
+/// Strip statistik di bawah kartu; tiap item membuka tab terkait.
+class _StatsStrip extends StatelessWidget {
+  final int activeOrders;
+  final int completedCount;
+  final int productCount;
+  final ValueChanged<int>? onOpenTab;
+
+  const _StatsStrip({
+    required this.activeOrders,
+    required this.completedCount,
+    required this.productCount,
+    this.onOpenTab,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    Widget divider() => Container(width: 1, height: 30, color: const Color(0xFFEDF1EC));
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      decoration: sellerCard(),
       child: Row(
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, color: AppColors.primary, size: 18),
+          _StatTile(
+            icon: Iconsax.receipt_item,
+            color: AppColors.warning,
+            value: '$activeOrders',
+            label: 'Pesanan Aktif',
+            onTap: () => onOpenTab?.call(2),
           ),
-          const SizedBox(width: 8),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
-              if (subtitle != null)
-                Text(subtitle!, style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
-            ],
+          divider(),
+          _StatTile(
+            icon: Iconsax.task_square,
+            color: AppColors.primaryMid,
+            value: '$completedCount',
+            label: 'Selesai',
+            onTap: () => onOpenTab?.call(3),
           ),
-          const Spacer(),
-          if (actionLabel != null)
-            Text(actionLabel!, style: const TextStyle(fontSize: 13, color: AppColors.primary, fontWeight: FontWeight.w600)),
+          divider(),
+          _StatTile(
+            icon: Iconsax.box,
+            color: AppColors.info,
+            value: '$productCount',
+            label: 'Produk',
+            onTap: () => onOpenTab?.call(1),
+          ),
         ],
       ),
     );
   }
 }
 
-class _RevenueCard extends StatelessWidget {
-  final double? revenue;
-  final int activeOrders;
+class _StatTile extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String value;
+  final String label;
+  final VoidCallback onTap;
 
-  const _RevenueCard({this.revenue, required this.activeOrders});
-
-  String _fmt(double v) => v.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+  const _StatTile({
+    required this.icon,
+    required this.color,
+    required this.value,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF005C25), Color(0xFF00441b)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 26,
+                    height: 26,
+                    decoration: BoxDecoration(color: color.withValues(alpha: 0.12), shape: BoxShape.circle),
+                    child: Icon(icon, color: color, size: 14),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(value,
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+                ],
+              ),
+              const SizedBox(height: 3),
+              Text(label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+            ],
+          ),
         ),
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(color: const Color(0xFF00441b).withOpacity(0.35), blurRadius: 16, offset: const Offset(0, 6)),
-        ],
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(children: const [
-                  Icon(Icons.payments_rounded, color: Colors.white70, size: 16),
-                  SizedBox(width: 6),
-                  Text('Pendapatan Selesai', style: TextStyle(color: Colors.white70, fontSize: 13)),
-                ]),
-                const SizedBox(height: 6),
-                revenue == null
-                    ? const SizedBox(height: 28, width: 100, child: LinearProgressIndicator(color: Colors.white30, backgroundColor: Colors.transparent))
-                    : Text(
-                        'Rp ${_fmt(revenue!)}',
-                        style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5),
-                      ),
-                const SizedBox(height: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), borderRadius: BorderRadius.circular(20)),
-                  child: Text('📦 $activeOrders Pesanan Aktif Berjalan', style: const TextStyle(color: Colors.white, fontSize: 11)),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            width: 56, height: 56,
-            decoration: BoxDecoration(color: Colors.white.withOpacity(0.15), shape: BoxShape.circle),
-            child: const Icon(Icons.trending_up_rounded, color: Colors.white, size: 28),
-          ),
-        ],
       ),
     );
   }
@@ -584,111 +910,139 @@ class _ProductMirrorCard extends StatelessWidget {
 
   const _ProductMirrorCard({required this.product});
 
-  String _fmt(double v) => v.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
-
   @override
   Widget build(BuildContext context) {
+    final lowStock = product.stock <= 10;
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-        border: Border.all(color: AppColors.border.withOpacity(0.7)),
-      ),
-      child: Row(
+      width: 152,
+      decoration: sellerCard(radius: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Image.asset(
-              product.imageUrls.isNotEmpty ? product.imageUrls.first : 'assets/images/product_sayur.jpg',
-              width: 56,
-              height: 56,
-              fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => Container(
-                width: 56,
-                height: 56,
-                color: AppColors.primaryLight,
-                child: const Icon(Icons.eco_rounded, color: AppColors.primary),
+          Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(6),
+                child: SellerProductImage(
+                  url: product.imageUrls.isNotEmpty ? product.imageUrls.first : null,
+                  name: product.name,
+                  width: 140,
+                  height: 96,
+                  radius: 14,
+                ),
               ),
-            ),
+              if (product.isAiPrice)
+                Positioned(
+                  left: 12,
+                  top: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+                    child: const Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.bolt_rounded, size: 12, color: Color(0xFFE08A00)),
+                      Text('Harga AI', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: Color(0xFFE08A00))),
+                    ]),
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   product.name,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: AppColors.textPrimary),
                 ),
                 const SizedBox(height: 2),
-                Text(
-                  'Rp ${_fmt(product.price)} / ${product.unit}',
-                  style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w700, fontSize: 13),
-                ),
-                const SizedBox(height: 2),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(6)),
-                      child: Text('Stok: ${product.stock} ${product.unit}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primary)),
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(
+                      text: rupiah(product.price),
+                      style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800, fontSize: 13),
                     ),
-                    const SizedBox(width: 8),
-                    if (product.isAiPrice)
-                      const Text('⚡ Harga Suara AI', style: TextStyle(fontSize: 10, color: Colors.orange, fontWeight: FontWeight.bold)),
-                  ],
+                    TextSpan(
+                      text: ' /${product.unit}',
+                      style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: lowStock ? AppColors.statusMenungguBg : AppColors.primaryLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    '${lowStock ? 'Stok menipis · ' : 'Stok '}${product.stock.toStringAsFixed(0)} ${product.unit}',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      color: lowStock ? AppColors.statusMenungguText : AppColors.primary,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-          const Icon(Icons.check_circle_outline_rounded, color: AppColors.primary, size: 20),
         ],
       ),
     );
   }
 }
 
-class _OrderCard extends StatelessWidget {
+class _OrderRow extends StatelessWidget {
   final FarmerOrder order;
-  const _OrderCard({required this.order});
-
-  String _fmt(double v) => v.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d)(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.');
+  final VoidCallback onTap;
+  const _OrderRow({required this.order, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
-        border: Border.all(color: AppColors.border.withOpacity(0.6)),
-      ),
-      child: Row(children: [
-        Container(
-          width: 42, height: 42,
-          decoration: BoxDecoration(color: AppColors.primaryLight, borderRadius: BorderRadius.circular(10)),
-          child: const Icon(Icons.shopping_bag_rounded, color: AppColors.primary, size: 22),
-        ),
-        const SizedBox(width: 12),
-        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Flexible(child: Text('#${order.id}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13), overflow: TextOverflow.ellipsis)),
-            const SizedBox(width: 8),
+    final initial = order.consumerName.isNotEmpty ? order.consumerName[0].toUpperCase() : '?';
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(18),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+        child: Row(children: [
+          CircleAvatar(
+            radius: 21,
+            backgroundColor: AppColors.primaryLight,
+            child: Text(initial, style: const TextStyle(color: AppColors.primary, fontWeight: FontWeight.w800)),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                order.consumerName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5, color: AppColors.textPrimary),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '${order.productName} · ${order.quantity.toStringAsFixed(0)} ${order.unit}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 8),
+              OrderProgressBar(status: order.status),
+            ]),
+          ),
+          const SizedBox(width: 8),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(rupiah(order.total),
+                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, color: AppColors.textPrimary)),
+            const SizedBox(height: 4),
             StatusBadge(status: order.status, fontSize: 10),
           ]),
-          const SizedBox(height: 3),
-          Text(order.consumerName, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
-          Text('${order.productName} · Rp ${_fmt(order.total)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-        ])),
-        const Icon(Icons.chevron_right_rounded, color: AppColors.textSecondary),
-      ]),
+        ]),
+      ),
     );
   }
 }
@@ -697,14 +1051,12 @@ class _QuickAction extends StatefulWidget {
   final IconData icon;
   final String label;
   final Color color;
-  final Color bgColor;
   final VoidCallback onTap;
 
   const _QuickAction({
     required this.icon,
     required this.label,
     required this.color,
-    required this.bgColor,
     required this.onTap,
   });
 
@@ -720,7 +1072,7 @@ class _QuickActionState extends State<_QuickAction> with SingleTickerProviderSta
   void initState() {
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: const Duration(milliseconds: 100));
-    _scale = Tween<double>(begin: 1, end: 0.93).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeIn));
+    _scale = Tween<double>(begin: 1, end: 0.94).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeIn));
   }
 
   @override
@@ -741,27 +1093,29 @@ class _QuickActionState extends State<_QuickAction> with SingleTickerProviderSta
       child: ScaleTransition(
         scale: _scale,
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
-          decoration: BoxDecoration(
-            color: widget.bgColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: widget.color.withValues(alpha: 0.2)),
-            boxShadow: [
-              BoxShadow(color: widget.color.withValues(alpha: 0.08), blurRadius: 8, offset: const Offset(0, 3)),
-            ],
-          ),
+          height: 98,
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+          decoration: sellerCard(radius: 18),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: widget.color.withValues(alpha: 0.15), shape: BoxShape.circle),
-                child: Icon(widget.icon, color: widget.color, size: 20),
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [widget.color.withValues(alpha: 0.20), widget.color.withValues(alpha: 0.07)],
+                  ),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(widget.icon, color: widget.color, size: 22),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 widget.label,
-                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: widget.color),
+                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.textPrimary, height: 1.2),
                 maxLines: 2,
                 textAlign: TextAlign.center,
                 overflow: TextOverflow.ellipsis,
@@ -769,6 +1123,69 @@ class _QuickActionState extends State<_QuickAction> with SingleTickerProviderSta
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Isi bar hijau yang tetap terlihat (pinned) saat Beranda discroll.
+class _CollapsedHeaderBar extends StatelessWidget {
+  final double revenue;
+  final int activeOrders;
+  final VoidCallback onTap;
+
+  const _CollapsedHeaderBar({required this.revenue, required this.activeOrders, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Container(
+            width: 34,
+            height: 34,
+            decoration: const BoxDecoration(color: Colors.white, shape: BoxShape.circle),
+            child: const Icon(Icons.mic_rounded, color: AppColors.primary, size: 19),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Voice AI Dashboard',
+                  style: TextStyle(color: Colors.white, fontSize: 15.5, fontWeight: FontWeight.w800, letterSpacing: -0.2),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  '${rupiah(revenue)} · $activeOrders pesanan aktif',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: Colors.white70, fontSize: 11.5, fontWeight: FontWeight.w500),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.28)),
+            ),
+            child: const Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.graphic_eq_rounded, color: Colors.greenAccent, size: 14),
+              SizedBox(width: 4),
+              Text('Hands-Free', style: TextStyle(color: Colors.white, fontSize: 10.5, fontWeight: FontWeight.bold)),
+            ]),
+          ),
+          const SizedBox(width: 4),
+          const Icon(Icons.keyboard_arrow_up_rounded, color: Colors.white70, size: 22),
+        ],
       ),
     );
   }

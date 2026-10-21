@@ -13,5 +13,8 @@ void main() {
       ),
     );
     expect(find.byType(MaterialApp), findsOneWidget);
+    // Habiskan timer delay flutter_animate di splash (maks 700 ms); timer
+    // navigasi 3 detik dibatalkan SplashScreen.dispose().
+    await tester.pump(const Duration(seconds: 1));
   });
 }

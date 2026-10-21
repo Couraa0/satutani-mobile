@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'screens/farmer/home/farmer_home_screen.dart';
 import 'screens/farmer/products/farmer_products_screen.dart';
 import 'screens/farmer/orders/farmer_orders_screen.dart';
@@ -17,12 +18,12 @@ class FarmerNavigation extends StatefulWidget {
 class _FarmerNavigationState extends State<FarmerNavigation> {
   int _idx = 0;
 
-  final _screens = const [
-    FarmerHomeScreen(),
-    FarmerProductsScreen(),
-    FarmerOrdersScreen(),
-    RevenueScreen(),
-    ProfileScreen(),
+  late final _screens = [
+    FarmerHomeScreen(onOpenTab: (i) => setState(() => _idx = i)),
+    const FarmerProductsScreen(),
+    const FarmerOrdersScreen(),
+    const RevenueScreen(),
+    const ProfileScreen(),
   ];
 
   @override
@@ -43,56 +44,56 @@ class _FarmerNavigationState extends State<FarmerNavigation> {
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: AppColors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
+              color: const Color(0xFF0B2A14).withValues(alpha: 0.08),
+              blurRadius: 24,
+              offset: const Offset(0, -6),
             ),
           ],
         ),
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+            padding: const EdgeInsets.fromLTRB(8, 8, 8, 6),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _NavItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
+                  icon: Iconsax.home_2_copy,
+                  activeIcon: Iconsax.home_2,
                   label: 'Beranda',
                   index: 0,
                   currentIndex: _idx,
                   onTap: (i) => setState(() => _idx = i),
                 ),
                 _NavItem(
-                  icon: Icons.inventory_2_outlined,
-                  activeIcon: Icons.inventory_2_rounded,
+                  icon: Iconsax.box_copy,
+                  activeIcon: Iconsax.box,
                   label: 'Produk',
                   index: 1,
                   currentIndex: _idx,
                   onTap: (i) => setState(() => _idx = i),
                 ),
                 _NavItem(
-                  icon: Icons.receipt_long_outlined,
-                  activeIcon: Icons.receipt_long_rounded,
+                  icon: Iconsax.receipt_2_copy,
+                  activeIcon: Iconsax.receipt_2,
                   label: 'Pesanan',
                   index: 2,
                   currentIndex: _idx,
                   onTap: (i) => setState(() => _idx = i),
                 ),
                 _NavItem(
-                  icon: Icons.account_balance_wallet_outlined,
-                  activeIcon: Icons.account_balance_wallet_rounded,
+                  icon: Iconsax.wallet_3_copy,
+                  activeIcon: Iconsax.wallet_3,
                   label: 'Dompet',
                   index: 3,
                   currentIndex: _idx,
                   onTap: (i) => setState(() => _idx = i),
                 ),
                 _NavItem(
-                  icon: Icons.person_outline_rounded,
-                  activeIcon: Icons.person_rounded,
+                  icon: Iconsax.profile_circle_copy,
+                  activeIcon: Iconsax.profile_circle,
                   label: 'Profil',
                   index: 4,
                   currentIndex: _idx,
@@ -127,36 +128,38 @@ class _NavItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isActive = index == currentIndex;
-    return GestureDetector(
-      onTap: () => onTap(index),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding: EdgeInsets.symmetric(horizontal: isActive ? 10 : 8, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.primaryLight : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => onTap(index),
+        behavior: HitTestBehavior.opaque,
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isActive ? activeIcon : icon,
-              color: isActive ? AppColors.primary : AppColors.textSecondary,
-              size: 22,
-            ),
-            if (isActive) ...[
-              const SizedBox(width: 4),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              width: isActive ? 52 : 40,
+              height: 32,
+              decoration: BoxDecoration(
+                color: isActive ? AppColors.primaryLight : Colors.transparent,
+                borderRadius: BorderRadius.circular(16),
               ),
-            ],
+              child: Icon(
+                isActive ? activeIcon : icon,
+                color: isActive ? AppColors.primary : AppColors.textSecondary,
+                size: 22,
+              ),
+            ),
+            const SizedBox(height: 3),
+            AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isActive ? FontWeight.w800 : FontWeight.w500,
+                color: isActive ? AppColors.primary : AppColors.textSecondary,
+              ),
+              child: Text(label),
+            ),
           ],
         ),
       ),

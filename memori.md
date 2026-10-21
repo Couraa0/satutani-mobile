@@ -4,7 +4,7 @@
 > Setiap kali ada perubahan struktur, keputusan teknis, atau task selesai — update bagian terkait di sini.
 
 **Last updated:** 2026-05-30 (auth flow lengkap — register/login email+password, Google OAuth, set/ubah password)
-**Live frontend:** https://satutani-mobile.vercel.app/
+**Live frontend:** https://satutani.my.id/
 **Repo:** https://github.com/Couraa0/satutani-mobile
 **Supabase project:** `SatuTani_Mobile` (organization: Muhammad Rafly, plan: Free)
 
