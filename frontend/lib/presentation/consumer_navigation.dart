@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/orders/orders_screen.dart';
 import 'screens/profile/profile_screen.dart';
 import 'screens/explore/explore_screen.dart';
 import 'screens/cart/cart_screen.dart';
 import '../core/constants/colors.dart';
+import 'widgets/app_nav_bar.dart';
 
 class ConsumerNavigation extends StatefulWidget {
   const ConsumerNavigation({super.key});
@@ -79,33 +81,16 @@ class _ConsumerNavigationState extends State<ConsumerNavigation>
           ),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 20,
-              offset: const Offset(0, -5),
-            ),
-          ],
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _NavItem(icon: Icons.home_outlined, activeIcon: Icons.home_rounded, label: 'Beranda', index: 0, currentIndex: _idx, onTap: _select),
-                _NavItem(icon: Icons.search_outlined, activeIcon: Icons.search_rounded, label: 'Jelajahi', index: 1, currentIndex: _idx, onTap: _select),
-                _NavItem(icon: Icons.shopping_cart_outlined, activeIcon: Icons.shopping_cart_rounded, label: 'Keranjang', index: 2, currentIndex: _idx, onTap: _select),
-                _NavItem(icon: Icons.receipt_long_outlined, activeIcon: Icons.receipt_long_rounded, label: 'Pesanan', index: 3, currentIndex: _idx, onTap: _select),
-                _NavItem(icon: Icons.person_outline_rounded, activeIcon: Icons.person_rounded, label: 'Profil', index: 4, currentIndex: _idx, onTap: _select),
-              ],
-            ),
-          ),
-        ),
+      bottomNavigationBar: AppNavBar(
+        currentIndex: _idx,
+        onTap: _select,
+        items: const [
+          AppNavItem(icon: Iconsax.home_2_copy, activeIcon: Iconsax.home_2, label: 'Beranda'),
+          AppNavItem(icon: Iconsax.search_normal_1_copy, activeIcon: Iconsax.search_normal_1, label: 'Jelajahi'),
+          AppNavItem(icon: Iconsax.shopping_cart_copy, activeIcon: Iconsax.shopping_cart, label: 'Keranjang'),
+          AppNavItem(icon: Iconsax.receipt_2_copy, activeIcon: Iconsax.receipt_2, label: 'Pesanan'),
+          AppNavItem(icon: Iconsax.profile_circle_copy, activeIcon: Iconsax.profile_circle, label: 'Profil'),
+        ],
       ),
     );
   }
@@ -225,64 +210,6 @@ class _AiChatFabState extends State<_AiChatFab>
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final IconData activeIcon;
-  final String label;
-  final int index;
-  final int currentIndex;
-  final void Function(int) onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.activeIcon,
-    required this.label,
-    required this.index,
-    required this.currentIndex,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isActive = index == currentIndex;
-    return GestureDetector(
-      onTap: () => onTap(index),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOutCubic,
-        padding:
-            EdgeInsets.symmetric(horizontal: isActive ? 16 : 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.primaryLight : Colors.transparent,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isActive ? activeIcon : icon,
-              color: isActive ? AppColors.primary : AppColors.textSecondary,
-              size: 24,
-            ),
-            if (isActive) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.primary,
-                ),
-              ),
-            ],
-          ],
         ),
       ),
     );
