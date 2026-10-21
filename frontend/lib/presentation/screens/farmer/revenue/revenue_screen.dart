@@ -4,6 +4,8 @@ import 'package:iconsax_flutter/iconsax_flutter.dart';
 import 'package:fl_chart/fl_chart.dart';
 import '../../../../core/constants/colors.dart';
 import '../../../../core/services/order_service.dart';
+import '../../../../core/utils/save_file.dart';
+import '../../../../core/utils/transactions_csv.dart';
 import '../../../../data/models/farmer_order.dart';
 import '../../../../data/mock/orders_mock.dart' show OrderStatus;
 import '../../../widgets/seller_ui.dart';
@@ -276,10 +278,28 @@ class _RevenueScreenState extends State<RevenueScreen> {
         const SizedBox(height: 26),
 
         // ── Riwayat ───────────────────────────────────────────────────────
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 4),
-          child: Text('Riwayat Transaksi',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: Row(children: [
+            const Expanded(
+              child: Text('Riwayat Transaksi',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: AppColors.textPrimary)),
+            ),
+            if (history.isNotEmpty)
+              OutlinedButton.icon(
+                onPressed: () => _exportCsv(history),
+                icon: const Icon(Iconsax.document_download, size: 16),
+                label: const Text('Export CSV', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  backgroundColor: Colors.white,
+                  side: BorderSide(color: AppColors.primary.withValues(alpha: 0.3)),
+                  minimumSize: const Size(0, 36),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: const StadiumBorder(),
+                ),
+              ),
+          ]),
         ),
         const SizedBox(height: 12),
         if (history.isEmpty)
@@ -329,6 +349,24 @@ class _RevenueScreenState extends State<RevenueScreen> {
   }
 
   static String _dateStr(DateTime d) => '${d.day} ${_months[d.month - 1]} ${d.year}';
+
+  Future<void> _exportCsv(List<FarmerOrder> history) async {
+    final now = DateTime.now();
+    String two(int v) => v.toString().padLeft(2, '0');
+    final filename = 'satutani-riwayat-transaksi-${now.year}${two(now.month)}${two(now.day)}.csv';
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final path = await saveTextFile(filename, buildTransactionsCsv(history), mimeType: 'text/csv;charset=utf-8');
+      messenger.showSnackBar(SnackBar(
+        content: Text(path == null
+            ? '${history.length} transaksi diekspor ke $filename'
+            : '${history.length} transaksi disimpan di $path'),
+        backgroundColor: AppColors.primary,
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Gagal mengekspor CSV: $e'), backgroundColor: AppColors.danger));
+    }
+  }
 }
 
 class _SummaryCard extends StatelessWidget {
